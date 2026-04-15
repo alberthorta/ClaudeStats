@@ -2,13 +2,55 @@ import SwiftUI
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    weak var store: StatsStore?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         NSLog("ClaudeStats: did finish launching")
+
+        // Auto-check for updates a few seconds after launch so we don't
+        // race with the initial UI / claude.ai fetch.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.maybeAutoCheckForUpdates()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         false
+    }
+
+    private func maybeAutoCheckForUpdates() {
+        guard let store, store.autoCheckUpdates else { return }
+        Task {
+            let status = await UpdateChecker.check()
+            if case let .updateAvailable(release) = status {
+                await MainActor.run { promptForUpdate(release: release) }
+            }
+        }
+    }
+
+    @MainActor
+    private func promptForUpdate(release: LatestRelease) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "ClaudeStats \(release.normalizedVersion) is available"
+        alert.informativeText = "You're on \(UpdateChecker.currentVersion). Update now? The app will restart automatically."
+        alert.addButton(withTitle: "Update now")
+        alert.addButton(withTitle: "Later")
+        alert.alertStyle = .informational
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            Task {
+                do { try await UpdateInstaller.installAndRestart(release: release) }
+                catch {
+                    let err = NSAlert()
+                    err.messageText = "Update failed"
+                    err.informativeText = error.localizedDescription
+                    err.alertStyle = .warning
+                    _ = err.runModal()
+                }
+            }
+        }
     }
 }
 
@@ -20,8 +62,10 @@ struct ClaudeStatsApp: App {
     var body: some Scene {
         MenuBarExtra {
             PopoverView(store: store)
+                .onAppear { appDelegate.store = store }
         } label: {
             MenuBarIconLabel(store: store)
+                .onAppear { appDelegate.store = store }
         }
         .menuBarExtraStyle(.window)
 

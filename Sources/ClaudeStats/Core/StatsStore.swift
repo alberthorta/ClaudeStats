@@ -23,6 +23,10 @@ final class StatsStore {
         didSet { UserDefaults.standard.set(displayMode.rawValue, forKey: "displayMode") }
     }
 
+    var autoCheckUpdates: Bool = UserDefaults.standard.bool(forKey: "autoCheckUpdates") {
+        didSet { UserDefaults.standard.set(autoCheckUpdates, forKey: "autoCheckUpdates") }
+    }
+
     enum SimulationMode: String, CaseIterable, Identifiable {
         case none = "Off"
         case signedOut = "Simulate signed out"

@@ -30,6 +30,10 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 - **Show remaining percentage in menu bar** — toggle between "% used" (default) and "% left" for the menu bar number
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
+- **Check for updates automatically at startup** — when enabled, the app checks for a newer release each launch and shows a native macOS confirmation dialog (Update now / Later) before installing.
+
+**About** (About button in the popover footer)
+- App icon, current version, author, contact email, project URL, and license link.
 
 ---
 
@@ -153,8 +157,9 @@ ClaudeStats/
 │   │   └── LaunchAtLogin.swift         SMAppService wrapper
 │   └── UI/
 │       ├── PopoverView.swift           Main popover layout + PaceView
-│       ├── SettingsView.swift          Sign-in + launch at login
-│       └── SignInWindow.swift          WKWebView-based cookie capture
+│       ├── SettingsView.swift          Sign-in, display, launch-at-login, updates
+│       ├── SignInWindow.swift          WKWebView-based cookie capture
+│       └── AboutWindow.swift           About panel
 └── scripts/
     ├── build-app.sh                    swift build → .app bundle → codesign
     └── make-icon.py                    Pillow-generated AppIcon.icns

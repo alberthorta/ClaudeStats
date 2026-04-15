@@ -146,6 +146,7 @@ struct SettingsView: View {
                 }
                 .disabled(updateStatus == .checking)
             }
+            Toggle("Check for updates automatically at startup", isOn: $store.autoCheckUpdates)
             updateStatusView
         }
     }

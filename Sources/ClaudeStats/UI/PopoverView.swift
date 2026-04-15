@@ -99,8 +99,15 @@ struct PopoverView: View {
 
     private var footer: some View {
         HStack {
+            Text("v\(UpdateChecker.currentVersion)")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
             Spacer()
             Button("Refresh") { store.reload() }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            Button("About") { AboutWindowController.present() }
                 .buttonStyle(.borderless)
                 .font(.caption)
             Button("Settings") {
