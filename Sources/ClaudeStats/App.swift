@@ -36,12 +36,15 @@ struct MenuBarIconLabel: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
-            if let pace = store.fiveHourPace {
+            if let pace = store.effectiveFiveHourPace {
                 Text("\(Int((pace.used * 100).rounded()))%")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
-            } else {
-                Text("\(Int(store.windowPercentRemaining * 100))%")
+            } else if !store.effectiveSignedIn {
+                Text("ClaudeStats")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+            } else if let weekly = store.effectiveWeeklyPace {
+                Text("\(Int((weekly.used * 100).rounded()))%")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             }
@@ -49,12 +52,13 @@ struct MenuBarIconLabel: View {
     }
 
     private var symbol: String {
-        guard let r = store.fiveHourPace?.ratio else { return "sparkles" }
+        guard let r = store.effectiveFiveHourPace?.ratio else {
+            return store.effectiveSignedIn ? "hourglass" : "person.crop.circle.badge.questionmark"
+        }
         switch r {
         case ..<0.95: return "tortoise.fill"
         case ..<1.10: return "equal.circle.fill"
         default:      return "hare.fill"
         }
     }
-
 }

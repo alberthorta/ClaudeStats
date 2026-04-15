@@ -15,6 +15,8 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 **Menu bar item**
 - A tortoise / balance / hare glyph indicating whether you're under, on, or over pace
 - The percentage of your 5-hour window used
+- If no 5h data is available yet (e.g. cold start), shows ⏳ + your weekly percentage
+- If not signed in, shows a question-mark icon + "ClaudeStats" — clicking it goes straight to Settings
 
 **Popover** (click the menu bar item)
 - **5-hour window** section with a pace bar: a colored fill shows how much of your window budget you've consumed, and a vertical marker shows where you should be based on elapsed time. If the fill is left of the marker you're ahead of budget; right of it, you're burning fast.
@@ -26,6 +28,7 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai (WKWebView-based) or paste your `sessionKey` manually
 - Toggle Launch at Login
+- **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 
 ---
 
@@ -144,6 +147,8 @@ ClaudeStats/
 │   │   ├── Scope.swift                 UsageScope enum (5h, Week)
 │   │   ├── Keychain.swift              Thin UserDefaults shim (misnomer kept)
 │   │   ├── ClaudeAIClient.swift        GET /api/organizations/{id}/usage
+│   │   ├── UpdateChecker.swift         GitHub Releases API check
+│   │   ├── UpdateInstaller.swift       Self-update: download zip, swap bundle, relaunch
 │   │   └── LaunchAtLogin.swift         SMAppService wrapper
 │   └── UI/
 │       ├── PopoverView.swift           Main popover layout + PaceView

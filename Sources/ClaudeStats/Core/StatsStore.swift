@@ -7,6 +7,29 @@ final class StatsStore {
     var remote: RemoteUsage?
     var remoteError: String?
     var isSignedIn: Bool = ClaudeAIClient.hasSession
+    var simulation: SimulationMode = .none
+
+    enum SimulationMode: String, CaseIterable, Identifiable {
+        case none = "Off"
+        case signedOut = "Simulate signed out"
+        case noWindow = "Simulate no 5h data"
+        var id: String { rawValue }
+    }
+
+    var effectiveSignedIn: Bool {
+        if simulation == .signedOut { return false }
+        return isSignedIn
+    }
+
+    var effectiveFiveHourPace: Pace? {
+        if simulation == .signedOut || simulation == .noWindow { return nil }
+        return fiveHourPace
+    }
+
+    var effectiveWeeklyPace: Pace? {
+        if simulation == .signedOut { return nil }
+        return weeklyPace
+    }
 
     private var timer: Timer?
 

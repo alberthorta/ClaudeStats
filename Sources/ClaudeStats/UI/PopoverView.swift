@@ -14,12 +14,28 @@ struct PopoverView: View {
         }
         .padding(16)
         .frame(width: 360)
+        .onAppear {
+            if !store.effectiveSignedIn {
+                NSApp.activate(ignoringOtherApps: true)
+                openSettings()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                    closeMenuBarPopover()
+                }
+            }
+        }
+    }
+
+    private func closeMenuBarPopover() {
+        for window in NSApp.windows
+            where String(describing: type(of: window)).contains("MenuBarExtra") {
+            window.close()
+        }
     }
 
     @ViewBuilder
     private func section(scope: UsageScope) -> some View {
         let stats = store.stats(for: scope)
-        let pace: StatsStore.Pace? = scope == .window5h ? store.fiveHourPace : store.weeklyPace
+        let pace: StatsStore.Pace? = scope == .window5h ? store.effectiveFiveHourPace : store.effectiveWeeklyPace
         let resetText: String = scope == .window5h
             ? store.windowResetText
             : (store.weeklyResetText ?? "—")
@@ -36,19 +52,30 @@ struct PopoverView: View {
 
     private func fallbackHeader(title: String, stats: ScopeStats) -> some View {
         HStack(alignment: .center, spacing: 14) {
-            Image(systemName: "chart.bar.fill")
+            Image(systemName: statusIcon)
                 .font(.system(size: 22))
-                .foregroundStyle(.tint)
+                .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(stats.subtitle)
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                Text(statusMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             Spacer()
         }
+    }
+
+    private var statusIcon: String {
+        if !store.effectiveSignedIn { return "person.crop.circle.badge.questionmark" }
+        if store.remoteError != nil { return "exclamationmark.triangle" }
+        return "hourglass"
+    }
+
+    private var statusMessage: String {
+        if !store.effectiveSignedIn { return "Sign in via Settings to see pace data" }
+        if let err = store.remoteError { return "claude.ai error: \(err)" }
+        return "Loading from claude.ai…"
     }
 
     @ViewBuilder
