@@ -49,7 +49,7 @@ This is the exact endpoint used by Claude's in-page `/usage` view. It returns yo
 
 Your `sessionKey` cookie is stored in your app preferences plist. Cleared when you sign out.
 
-**Per-model breakdown** comes from parsing your local Claude Code session logs at `~/.claude/projects/*/*.jsonl` — the `/usage` endpoint returns aggregate percentages only, not a per-model split.
+**Per-model breakdown** comes from parsing your local Claude Code session logs at `~/.claude/projects/*/*.jsonl` — the `/usage` endpoint returns aggregate percentages only, not a per-model split. Internal Claude Code messages tagged `<synthetic>` (tool-result wrappers, session-interrupted notices) are filtered out so the percentages reflect only real API calls.
 
 **Refresh cadence:** every 30 seconds. Manual refresh via the Refresh button.
 

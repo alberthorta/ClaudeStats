@@ -189,7 +189,9 @@ final class StatsStore {
 
     private func tokensByModel(_ events: [UsageEvent]) -> [(String, Int)] {
         var acc: [String: Int] = [:]
-        for e in events { acc[e.model, default: 0] += e.billableTokens }
+        for e in events where e.model != "<synthetic>" {
+            acc[e.model, default: 0] += e.billableTokens
+        }
         return acc.map { ($0.key, $0.value) }.sorted { $0.1 > $1.1 }
     }
 }
