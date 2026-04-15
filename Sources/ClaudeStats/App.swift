@@ -37,18 +37,23 @@ struct MenuBarIconLabel: View {
         HStack(spacing: 4) {
             Image(systemName: symbol)
             if let pace = store.effectiveFiveHourPace {
-                Text("\(Int((pace.used * 100).rounded()))%")
+                Text(percentText(used: pace.used))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             } else if !store.effectiveSignedIn {
                 Text("ClaudeStats")
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
             } else if let weekly = store.effectiveWeeklyPace {
-                Text("\(Int((weekly.used * 100).rounded()))%")
+                Text(percentText(used: weekly.used))
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                     .monospacedDigit()
             }
         }
+    }
+
+    private func percentText(used: Double) -> String {
+        let value = store.displayMode == .used ? used : (1 - used)
+        return "\(Int((value * 100).rounded()))%"
     }
 
     private var symbol: String {

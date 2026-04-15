@@ -6,110 +6,165 @@ struct SettingsView: View {
     @State private var updateStatus: UpdateStatus = .idle
     @State private var installing: Bool = false
     @State private var installError: String?
+    @State private var showPasteField: Bool = false
 
     var body: some View {
-        Form {
-            Section("Claude.ai account") {
-                HStack {
-                    Image(systemName: store.isSignedIn ? "checkmark.seal.fill" : "person.crop.circle.badge.questionmark")
-                        .foregroundStyle(store.isSignedIn ? .green : .secondary)
-                    Text(store.isSignedIn ? "Signed in — using server-side usage" : "Not signed in — falls back to local estimates")
-                        .font(.callout)
-                    Spacer()
-                }
-                HStack {
-                    Button(store.isSignedIn ? "Re-authenticate" : "Sign in to Claude.ai") {
-                        SignInWindowController.present {
-                            store.isSignedIn = ClaudeAIClient.hasSession
-                            Task { await store.refreshRemote() }
-                        }
-                    }
-                    if store.isSignedIn {
-                        Button("Sign out") { store.signOut() }
-                    }
-                }
-                if let err = store.remoteError {
-                    Text(err)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-                Text("Opens a login window. Your session cookie is stored in the macOS Keychain.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 28) {
+                claudeAccountSection
+                generalSection
+                if Self.debugEnabled { debugSection }
+                updatesSection
+            }
+            .padding(24)
+            .frame(width: 460, alignment: .leading)
+        }
+        .frame(width: 460, height: 600)
+    }
 
-                Label {
-                    Text("“Continue with Google” isn't supported — Google blocks sign-in inside embedded web views. Use email login or paste the sessionKey manually.")
-                } icon: {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+    // MARK: - Sections
+
+    private var claudeAccountSection: some View {
+        section("Claude.ai account") {
+            HStack(spacing: 8) {
+                Image(systemName: store.isSignedIn ? "checkmark.seal.fill" : "person.crop.circle.badge.questionmark")
+                    .foregroundStyle(store.isSignedIn ? .green : .secondary)
+                Text(store.isSignedIn
+                     ? "Signed in — using server-side usage"
+                     : "Not signed in — pace data unavailable")
+                    .font(.callout)
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 8) {
+                Button(store.isSignedIn ? "Re-authenticate" : "Sign in to Claude.ai") {
+                    SignInWindowController.present {
+                        store.isSignedIn = ClaudeAIClient.hasSession
+                        Task { await store.refreshRemote() }
+                    }
                 }
+                if store.isSignedIn {
+                    Button("Sign out") { store.signOut() }
+                }
+                Spacer(minLength: 0)
+            }
+
+            if let err = store.remoteError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Text("Opens a login window. Your session cookie is stored locally.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                DisclosureGroup("Paste sessionKey manually") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("1. Open claude.ai in Safari/Chrome (logged in)\n2. DevTools → Application → Cookies → claude.ai\n3. Copy the value of the `sessionKey` cookie and paste below")
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("\u{201C}Continue with Google\u{201D} isn't supported. Google blocks sign-in inside embedded web views — use email login or paste the sessionKey manually below.")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    showPasteField.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: showPasteField ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                        Text("Paste sessionKey manually")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        SessionPasteField { key in
-                            Task { @MainActor in
-                                ClaudeAIClient.storeSessionKey(key)
-                                do {
-                                    let orgId = try await ClaudeAIClient.fetchOrgId()
-                                    ClaudeAIClient.storeOrgId(orgId)
-                                    store.isSignedIn = true
-                                    await store.refreshRemote()
-                                } catch {
-                                    store.remoteError = error.localizedDescription
-                                }
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if showPasteField {
+                    Text("1. Open claude.ai in Safari/Chrome (logged in)\n2. DevTools \u{2192} Application \u{2192} Cookies \u{2192} claude.ai\n3. Copy the value of the sessionKey cookie and paste below")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    SessionPasteField { key in
+                        Task { @MainActor in
+                            ClaudeAIClient.storeSessionKey(key)
+                            do {
+                                let orgId = try await ClaudeAIClient.fetchOrgId()
+                                ClaudeAIClient.storeOrgId(orgId)
+                                store.isSignedIn = true
+                                await store.refreshRemote()
+                            } catch {
+                                store.remoteError = error.localizedDescription
                             }
                         }
                     }
-                    .padding(.top, 4)
                 }
-                .font(.caption)
-            }
-
-            Section("General") {
-                Toggle("Launch at login", isOn: $launchAtLogin)
-                    .onChange(of: launchAtLogin) { _, newValue in
-                        let ok = LaunchAtLogin.setEnabled(newValue)
-                        if !ok { launchAtLogin = LaunchAtLogin.isEnabled }
-                    }
-            }
-
-            if Self.debugEnabled {
-                Section("Debug (temporary)") {
-                    Picker("Simulate state", selection: $store.simulation) {
-                        ForEach(StatsStore.SimulationMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    Text("Forces the UI into a placeholder state without actually signing out or waiting for the window to drain.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Updates") {
-                HStack {
-                    Text("Version \(UpdateChecker.currentVersion)")
-                        .font(.callout)
-                    Spacer()
-                    Button(updateStatus == .checking ? "Checking…" : "Check for updates") {
-                        Task {
-                            updateStatus = .checking
-                            updateStatus = await UpdateChecker.check()
-                        }
-                    }
-                    .disabled(updateStatus == .checking)
-                }
-                updateStatusView
             }
         }
-        .padding(20)
-        .frame(width: 420)
+    }
+
+    private var generalSection: some View {
+        section("General") {
+            Toggle("Show remaining percentage in menu bar", isOn: Binding(
+                get: { store.displayMode == .remaining },
+                set: { store.displayMode = $0 ? .remaining : .used }
+            ))
+            Toggle("Launch at login", isOn: $launchAtLogin)
+                .onChange(of: launchAtLogin) { _, newValue in
+                    let ok = LaunchAtLogin.setEnabled(newValue)
+                    if !ok { launchAtLogin = LaunchAtLogin.isEnabled }
+                }
+        }
+    }
+
+    private var debugSection: some View {
+        section("Debug (temporary)") {
+            Picker("Simulate state", selection: $store.simulation) {
+                ForEach(StatsStore.SimulationMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
+            Text("Forces the UI into a placeholder state without actually signing out or waiting for the window to drain.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var updatesSection: some View {
+        section("Updates") {
+            HStack {
+                Text("Version \(UpdateChecker.currentVersion)")
+                    .font(.callout)
+                Spacer()
+                Button(updateStatus == .checking ? "Checking\u{2026}" : "Check for updates") {
+                    Task {
+                        updateStatus = .checking
+                        updateStatus = await UpdateChecker.check()
+                    }
+                }
+                .disabled(updateStatus == .checking)
+            }
+            updateStatusView
+        }
+    }
+
+    // MARK: - Helpers
+
+    @ViewBuilder
+    private func section<Content: View>(_ title: String, @ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.system(.title3, design: .rounded).weight(.semibold))
+                .foregroundStyle(.primary)
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
+        }
     }
 
     @ViewBuilder
@@ -118,7 +173,7 @@ struct SettingsView: View {
         case .idle:
             EmptyView()
         case .checking:
-            Text("Contacting GitHub…")
+            Text("Contacting GitHub\u{2026}")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         case .upToDate(_, let latest):
@@ -131,7 +186,7 @@ struct SettingsView: View {
                     .font(.caption.weight(.medium))
                     .foregroundStyle(.orange)
                 HStack(spacing: 10) {
-                    Button(installing ? "Installing…" : "Install & restart") {
+                    Button(installing ? "Installing\u{2026}" : "Install & restart") {
                         Task { await installUpdate(release: release) }
                     }
                     .disabled(installing || release.downloadURL == nil)
@@ -164,7 +219,6 @@ struct SettingsView: View {
         installError = nil
         do {
             try await UpdateInstaller.installAndRestart(release: release)
-            // App will quit before this point on success.
         } catch {
             installError = error.localizedDescription
             installing = false
@@ -188,5 +242,4 @@ struct SettingsView: View {
             }
         }
     }
-
 }

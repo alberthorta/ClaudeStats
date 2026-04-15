@@ -27,6 +27,7 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai (WKWebView-based) or paste your `sessionKey` manually
+- **Show remaining percentage in menu bar** — toggle between "% used" (default) and "% left" for the menu bar number
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 

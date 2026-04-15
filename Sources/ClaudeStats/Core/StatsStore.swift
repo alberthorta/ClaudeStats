@@ -9,6 +9,20 @@ final class StatsStore {
     var isSignedIn: Bool = ClaudeAIClient.hasSession
     var simulation: SimulationMode = .none
 
+    enum DisplayMode: String, CaseIterable, Identifiable {
+        case used = "Used"
+        case remaining = "Remaining"
+        var id: String { rawValue }
+    }
+
+    var displayMode: DisplayMode = {
+        if let raw = UserDefaults.standard.string(forKey: "displayMode"),
+           let m = DisplayMode(rawValue: raw) { return m }
+        return .used
+    }() {
+        didSet { UserDefaults.standard.set(displayMode.rawValue, forKey: "displayMode") }
+    }
+
     enum SimulationMode: String, CaseIterable, Identifiable {
         case none = "Off"
         case signedOut = "Simulate signed out"
