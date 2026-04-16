@@ -10,8 +10,10 @@ final class StatsStore {
     var simulation: SimulationMode = .none
 
     enum DisplayMode: String, CaseIterable, Identifiable {
-        case used = "Used"
-        case remaining = "Remaining"
+        case used = "% used"
+        case remaining = "% remaining"
+        case timeToReset = "Time to reset"
+        case glyphOnly = "Icon only"
         var id: String { rawValue }
     }
 
@@ -20,11 +22,43 @@ final class StatsStore {
            let m = DisplayMode(rawValue: raw) { return m }
         return .used
     }() {
-        didSet { UserDefaults.standard.set(displayMode.rawValue, forKey: "displayMode") }
+        didSet {
+            UserDefaults.standard.set(displayMode.rawValue, forKey: "displayMode")
+            if displayMode == .glyphOnly { compactMenuBar = false }
+        }
     }
 
     var autoCheckUpdates: Bool = UserDefaults.standard.bool(forKey: "autoCheckUpdates") {
         didSet { UserDefaults.standard.set(autoCheckUpdates, forKey: "autoCheckUpdates") }
+    }
+
+    var compactMenuBar: Bool = UserDefaults.standard.bool(forKey: "compactMenuBar") {
+        didSet { UserDefaults.standard.set(compactMenuBar, forKey: "compactMenuBar") }
+    }
+
+    var showDesktopOverlay: Bool = UserDefaults.standard.bool(forKey: "showDesktopOverlay") {
+        didSet {
+            UserDefaults.standard.set(showDesktopOverlay, forKey: "showDesktopOverlay")
+            DesktopOverlayManager.shared.update(store: self)
+        }
+    }
+
+    var overlayScreen: OverlayScreen = OverlayScreen(rawValue: UserDefaults.standard.string(forKey: "overlayScreen") ?? "all") {
+        didSet {
+            UserDefaults.standard.set(overlayScreen.rawValue, forKey: "overlayScreen")
+            DesktopOverlayManager.shared.update(store: self)
+        }
+    }
+
+    var overlayPosition: OverlayPosition = {
+        if let raw = UserDefaults.standard.string(forKey: "overlayPosition"),
+           let p = OverlayPosition(rawValue: raw) { return p }
+        return .topLeft
+    }() {
+        didSet {
+            UserDefaults.standard.set(overlayPosition.rawValue, forKey: "overlayPosition")
+            DesktopOverlayManager.shared.update(store: self)
+        }
     }
 
     enum SimulationMode: String, CaseIterable, Identifiable {
@@ -77,6 +111,7 @@ final class StatsStore {
         events = JsonlUsageReader.loadEvents(since: lookback)
         isSignedIn = ClaudeAIClient.hasSession
         if isSignedIn { Task { await refreshRemote() } }
+        DesktopOverlayManager.shared.update(store: self)
     }
 
     @MainActor

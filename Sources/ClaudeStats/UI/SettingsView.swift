@@ -8,12 +8,14 @@ struct SettingsView: View {
     @State private var installError: String?
     @State private var showPasteField: Bool = false
     @State private var googleSignInStatus: String?
+    @State private var currentShortcut: KeyCombo? = KeyCombo.load()
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 claudeAccountSection
                 generalSection
+                desktopOverlaySection
                 if Self.debugEnabled { debugSection }
                 updatesSection
             }
@@ -129,15 +131,59 @@ struct SettingsView: View {
 
     private var generalSection: some View {
         section("General") {
-            Toggle("Show remaining percentage in menu bar", isOn: Binding(
-                get: { store.displayMode == .remaining },
-                set: { store.displayMode = $0 ? .remaining : .used }
-            ))
+            Picker("Menu bar display", selection: $store.displayMode) {
+                ForEach(StatsStore.DisplayMode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.menu)
+            Toggle("Compact menu bar (text only, no icon)", isOn: $store.compactMenuBar)
+                .disabled(store.displayMode == .glyphOnly)
             Toggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     let ok = LaunchAtLogin.setEnabled(newValue)
                     if !ok { launchAtLogin = LaunchAtLogin.isEnabled }
                 }
+            HStack {
+                Text("Toggle popover shortcut")
+                Spacer()
+                ShortcutRecorderView(combo: $currentShortcut)
+                    .frame(width: 140)
+                if currentShortcut != nil {
+                    Button("Clear") {
+                        currentShortcut = nil
+                        KeyCombo.clear()
+                        HotkeyManager.shared.unregister()
+                    }
+                    .font(.caption)
+                }
+            }
+        }
+    }
+
+    private var desktopOverlaySection: some View {
+        section("Desktop overlay") {
+            Toggle("Show usage on desktop", isOn: $store.showDesktopOverlay)
+
+            if store.showDesktopOverlay {
+                Picker("Display on", selection: $store.overlayScreen) {
+                    Text("All monitors").tag(OverlayScreen.all)
+                    ForEach(NSScreen.screens, id: \.screenNumber) { screen in
+                        Text(screen.displayName).tag(OverlayScreen.screen(screen.screenNumber))
+                    }
+                }
+                .pickerStyle(.menu)
+                Picker("Position", selection: $store.overlayPosition) {
+                    ForEach(OverlayPosition.allCases) { pos in
+                        Text(pos.rawValue).tag(pos)
+                    }
+                }
+                .pickerStyle(.menu)
+                Text("A translucent widget with your pace data is pinned to the top-left corner of the desktop. It's non-interactive and stays behind all windows.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 
@@ -267,3 +313,99 @@ struct SettingsView: View {
         }
     }
 }
+
+// MARK: - Shortcut Recorder
+
+struct ShortcutRecorderView: NSViewRepresentable {
+    @Binding var combo: KeyCombo?
+
+    func makeNSView(context: Context) -> ShortcutRecorderNSView {
+        let view = ShortcutRecorderNSView()
+        view.combo = combo
+        view.onRecord = { newCombo in
+            combo = newCombo
+            newCombo.save()
+            PopoverToggle.registerHotkey(combo: newCombo)
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: ShortcutRecorderNSView, context: Context) {
+        nsView.combo = combo
+        nsView.needsDisplay = true
+    }
+}
+
+final class ShortcutRecorderNSView: NSView {
+    var combo: KeyCombo?
+    var onRecord: ((KeyCombo) -> Void)?
+    private var recording = false
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let bg: NSColor = recording ? .controlAccentColor.withAlphaComponent(0.15) : .controlBackgroundColor
+        bg.setFill()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6).fill()
+
+        NSColor.separatorColor.setStroke()
+        NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 6, yRadius: 6).stroke()
+
+        let text: String
+        if recording {
+            text = "Press shortcut\u{2026}"
+        } else {
+            text = combo?.displayString ?? "Click to record"
+        }
+
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 12, weight: .medium),
+            .foregroundColor: recording ? NSColor.controlAccentColor : NSColor.labelColor
+        ]
+        let str = NSAttributedString(string: text, attributes: attrs)
+        let size = str.size()
+        let point = NSPoint(x: (bounds.width - size.width) / 2,
+                            y: (bounds.height - size.height) / 2)
+        str.draw(at: point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        recording = true
+        needsDisplay = true
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        guard recording else { super.keyDown(with: event); return }
+
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        // Require at least one modifier (Cmd, Option, Control, or Shift)
+        guard flags.contains(.command) || flags.contains(.option) || flags.contains(.control) else {
+            return
+        }
+
+        // Escape cancels recording
+        if event.keyCode == 53 {
+            recording = false
+            needsDisplay = true
+            return
+        }
+
+        let newCombo = KeyCombo.from(event: event)
+        combo = newCombo
+        recording = false
+        needsDisplay = true
+        onRecord?(newCombo)
+    }
+
+    override func resignFirstResponder() -> Bool {
+        recording = false
+        needsDisplay = true
+        return super.resignFirstResponder()
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 140, height: 24)
+    }
+}
+

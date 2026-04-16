@@ -14,8 +14,9 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 
 **Menu bar item**
 - A tortoise / balance / hare glyph indicating whether you're under, on, or over pace
-- The percentage of your 5-hour window used
-- If no 5h data is available yet (e.g. cold start), shows ⏳ + your weekly percentage
+- Configurable display: % used, % remaining, time to reset, or icon only
+- Compact mode hides the glyph for a minimal footprint
+- If no 5h data is available yet (e.g. cold start), shows hourglass + your weekly percentage
 - If not signed in, shows a question-mark icon + "ClaudeStats" — clicking it goes straight to Settings
 
 **Popover** (click the menu bar item)
@@ -27,7 +28,10 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai via email (embedded WKWebView), Google (`ASWebAuthenticationSession` in your default browser), or paste your `sessionKey` manually
-- **Show remaining percentage in menu bar** — toggle between "% used" (default) and "% left" for the menu bar number
+- **Menu bar display** — choose between: % used (default), % remaining, time to reset, or icon only
+- **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
+- **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.
+- **Desktop overlay** — pin a translucent, non-interactive widget with your pace data to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 - **Check for updates automatically at startup** — when enabled, the app checks for a newer release each launch and shows a native macOS confirmation dialog (Update now / Later) before installing.
@@ -153,11 +157,13 @@ ClaudeStats/
 │   │   ├── ClaudeAIClient.swift        GET /api/organizations/{id}/usage
 │   │   ├── UpdateChecker.swift         GitHub Releases API check
 │   │   ├── UpdateInstaller.swift       Self-update: download zip, swap bundle, relaunch
-│   │   └── LaunchAtLogin.swift         SMAppService wrapper
+│   │   ├── LaunchAtLogin.swift         SMAppService wrapper
+│   │   └── HotkeyManager.swift        Carbon RegisterEventHotKey global shortcut
 │   └── UI/
 │       ├── PopoverView.swift           Main popover layout + PaceView
 │       ├── SettingsView.swift          Sign-in, display, launch-at-login, updates
 │       ├── SignInWindow.swift          WKWebView (email) + ASWebAuthenticationSession (Google)
+│       ├── DesktopOverlay.swift        Non-interactive desktop widget + overlay manager
 │       └── AboutWindow.swift           About panel
 └── scripts/
     ├── build-app.sh                    swift build → .app bundle → codesign
