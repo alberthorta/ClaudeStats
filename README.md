@@ -13,7 +13,7 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 ## What you see
 
 **Menu bar item**
-- A tortoise / balance / hare glyph indicating whether you're under, on, or over pace
+- A tortoise / gauge / hare glyph indicating whether you're under, on, or over pace
 - Configurable display: % used, % remaining, time to reset, or icon only
 - Compact mode hides the glyph for a minimal footprint
 - If no 5h data is available yet (e.g. cold start), shows hourglass + your weekly percentage
@@ -22,19 +22,26 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 **Popover** (click the menu bar item)
 - **5-hour window** section with a pace bar: a colored fill shows how much of your window budget you've consumed, and a vertical marker shows where you should be based on elapsed time. If the fill is left of the marker you're ahead of budget; right of it, you're burning fast.
 - **Weekly** section with the same pace visualization for your 7-day cap
+- **Activity heatmap** — GitHub-style contribution grid showing the last 8 weeks of daily usage intensity (togglable in Settings, requires restart to apply)
 - Per-model breakdown (opus / sonnet / haiku) as share of the window's total
 - Projected end-of-window utilization
-- Countdown to next reset
+- Countdown to next reset and live refresh countdown
 
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai via email (embedded WKWebView), Google (`ASWebAuthenticationSession` in your default browser), or paste your `sessionKey` manually
 - **Menu bar display** — choose between: % used (default), % remaining, time to reset, or icon only
 - **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
 - **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.
-- **Desktop overlay** — pin a translucent, non-interactive widget with your pace data to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
+- **Show activity heatmap in popover** — toggles the inline heatmap; change requires a restart (the app will prompt you).
+- **Desktop overlay** — pin a translucent, non-interactive widget with your pace data, activity heatmap, and a watermark pace glyph to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 - **Check for updates automatically at startup** — when enabled, the app checks for a newer release each launch and shows a native macOS confirmation dialog (Update now / Later) before installing.
+
+**Usage History** (History button in the popover footer)
+- **Streak tracker** — consecutive days of Claude usage and total active days in the last 90 days
+- **Last 7 days** — bar chart of daily billable token usage with color-coded intensity
+- **Usage heatmap** — full 12-week GitHub-style contribution grid with month labels, weekday labels, and tooltips
 
 **About** (About button in the popover footer)
 - App icon, current version, author, contact email, project URL, and license link.
@@ -158,9 +165,11 @@ ClaudeStats/
 │   │   ├── UpdateChecker.swift         GitHub Releases API check
 │   │   ├── UpdateInstaller.swift       Self-update: download zip, swap bundle, relaunch
 │   │   ├── LaunchAtLogin.swift         SMAppService wrapper
-│   │   └── HotkeyManager.swift        Carbon RegisterEventHotKey global shortcut
+│   │   ├── HotkeyManager.swift        Carbon RegisterEventHotKey global shortcut
+│   │   └── UsageHistory.swift         Daily summaries, streak calculation, heatmap data
 │   └── UI/
-│       ├── PopoverView.swift           Main popover layout + PaceView
+│       ├── PopoverView.swift           Main popover layout + PaceView + MiniHeatmapGrid
+│       ├── HistoryView.swift           Usage History window (bar chart, heatmap, streak)
 │       ├── SettingsView.swift          Sign-in, display, launch-at-login, updates
 │       ├── SignInWindow.swift          WKWebView (email) + ASWebAuthenticationSession (Google)
 │       ├── DesktopOverlay.swift        Non-interactive desktop widget + overlay manager

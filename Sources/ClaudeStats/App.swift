@@ -172,7 +172,7 @@ struct MenuBarIconLabel: View {
         }
         switch r {
         case ..<0.95: return "tortoise.fill"
-        case ..<1.10: return "equal.circle.fill"
+        case ..<1.10: return "gauge.medium"
         default:      return "hare.fill"
         }
     }

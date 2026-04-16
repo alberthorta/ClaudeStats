@@ -36,6 +36,24 @@ final class StatsStore {
         didSet { UserDefaults.standard.set(compactMenuBar, forKey: "compactMenuBar") }
     }
 
+    // Frozen at launch — the popover reads this to avoid resizing mid-session.
+    let showHistoryAtLaunch: Bool = {
+        if UserDefaults.standard.object(forKey: "showHistory") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "showHistory")
+    }()
+
+    var showHistory: Bool = {
+        if UserDefaults.standard.object(forKey: "showHistory") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "showHistory")
+    }() {
+        didSet { UserDefaults.standard.set(showHistory, forKey: "showHistory") }
+    }
+
+    // Cached history data — recomputed every 30 minutes, not every reload cycle
+    var cachedSummaries: [DailySummary] = []
+    var cachedStreak: Int = 0
+    private var lastHistoryRefresh: Date = .distantPast
+
     var showDesktopOverlay: Bool = UserDefaults.standard.bool(forKey: "showDesktopOverlay") {
         didSet {
             UserDefaults.standard.set(showDesktopOverlay, forKey: "showDesktopOverlay")
@@ -84,10 +102,15 @@ final class StatsStore {
     }
 
     private var timer: Timer?
+    private var countdownTimer: Timer?
+    private var lastReloadTime: Date = Date()
+    private let refreshInterval: Double = 30
+    var secondsUntilRefresh: Int = 30
 
     init() {
         reload()
         startTimer()
+        startCountdown()
     }
 
     var windowPercentRemaining: Double {
@@ -106,9 +129,23 @@ final class StatsStore {
     }
 
     func reload() {
-        // Parse last 8 days of JSONLs so week + 5h breakdown is always covered.
-        let lookback = Date().addingTimeInterval(-8 * 24 * 3600)
-        events = JsonlUsageReader.loadEvents(since: lookback)
+        lastReloadTime = Date()
+        secondsUntilRefresh = Int(refreshInterval)
+        let needsHistoryRefresh = Date().timeIntervalSince(lastHistoryRefresh) > 1800
+
+        let lookback = needsHistoryRefresh ? -90 * 24 * 3600.0 : -8 * 24 * 3600.0
+        let allEvents = JsonlUsageReader.loadEvents(since: Date().addingTimeInterval(lookback))
+
+        if needsHistoryRefresh {
+            let cutoff = Date().addingTimeInterval(-8 * 24 * 3600)
+            events = allEvents.filter { $0.timestamp >= cutoff }
+            cachedSummaries = UsageHistory.dailySummaries(from: allEvents, days: 90)
+            cachedStreak = UsageHistory.streak(from: cachedSummaries)
+            lastHistoryRefresh = Date()
+        } else {
+            events = allEvents
+        }
+
         isSignedIn = ClaudeAIClient.hasSession
         if isSignedIn { Task { await refreshRemote() } }
         DesktopOverlayManager.shared.update(store: self)
@@ -135,6 +172,14 @@ final class StatsStore {
     private func startTimer() {
         timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
             self?.reload()
+        }
+    }
+
+    private func startCountdown() {
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let elapsed = Int(Date().timeIntervalSince(self.lastReloadTime))
+            self.secondsUntilRefresh = max(0, Int(self.refreshInterval) - elapsed)
         }
     }
 

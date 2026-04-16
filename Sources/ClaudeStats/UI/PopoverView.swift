@@ -9,6 +9,10 @@ struct PopoverView: View {
             section(scope: .window5h)
             Divider()
             section(scope: .week)
+            if store.showHistoryAtLaunch {
+                Divider()
+                miniHeatmap
+            }
             Divider()
             footer
         }
@@ -97,14 +101,35 @@ struct PopoverView: View {
         }
     }
 
+    private var miniHeatmap: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Activity")
+                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                Spacer()
+                Text("\(store.cachedStreak) day\(store.cachedStreak == 1 ? "" : "s") streak")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            MiniHeatmapGrid(data: Array(store.cachedSummaries.suffix(56)))
+        }
+    }
+
     private var footer: some View {
         HStack {
             Text("v\(UpdateChecker.currentVersion)")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
+            Text(store.secondsUntilRefresh > 0 ? "Refresh in \(store.secondsUntilRefresh)s" : "Refreshing…")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .monospacedDigit()
             Spacer()
             Button("Refresh") { store.reload() }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            Button("History") { HistoryWindowController.present(store: store) }
                 .buttonStyle(.borderless)
                 .font(.caption)
             Button("About") { AboutWindowController.present() }
@@ -215,6 +240,161 @@ struct PaceView: View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 6, height: 6)
             Text(text).foregroundStyle(.secondary).monospacedDigit()
+        }
+    }
+}
+
+struct MiniHeatmapGrid: View {
+    let data: [DailySummary]
+    private let spacing: CGFloat = 3
+    private let dayLabelWidth: CGFloat = 24
+
+    var body: some View {
+        let cal = Calendar.current
+        let grid = buildGrid(cal: cal)
+        let labels = buildMonthLabels(grid: grid, cal: cal)
+        // Popover is 360px with 16px padding = 328px inner width
+        let columns = CGFloat(max(grid.count, 1))
+        let gridWidth: CGFloat = 328 - dayLabelWidth - spacing
+        let cellSize = floor((gridWidth - spacing * (columns - 1)) / columns)
+
+        VStack(alignment: .leading, spacing: 3) {
+            // Month labels
+            HStack(spacing: 0) {
+                Color.clear.frame(width: dayLabelWidth + spacing, height: 12)
+                ForEach(labels, id: \.offset) { item in
+                    Text(item.label)
+                        .font(.system(size: 9, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(width: CGFloat(item.span) * (cellSize + spacing), alignment: .leading)
+                }
+                Spacer(minLength: 0)
+            }
+
+            // Grid with weekday labels
+            HStack(alignment: .top, spacing: spacing) {
+                // Weekday labels
+                VStack(spacing: spacing) {
+                    ForEach(0..<7, id: \.self) { row in
+                        let label = weekdayLabel(row, cal: cal)
+                        if !label.isEmpty {
+                            Text(label)
+                                .font(.system(size: 9, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .frame(width: dayLabelWidth, height: cellSize, alignment: .trailing)
+                        } else {
+                            Color.clear.frame(width: dayLabelWidth, height: cellSize)
+                        }
+                    }
+                }
+
+                // Cells
+                ForEach(0..<grid.count, id: \.self) { col in
+                    VStack(spacing: spacing) {
+                        ForEach(0..<7, id: \.self) { row in
+                            if let summary = grid[col][row] {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(heatColor(summary.intensity))
+                                    .frame(width: cellSize, height: cellSize)
+                            } else {
+                                Color.clear.frame(width: cellSize, height: cellSize)
+                            }
+                        }
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private func buildGrid(cal: Calendar) -> [[DailySummary?]] {
+        let lookup = Dictionary(uniqueKeysWithValues: data.map { (cal.startOfDay(for: $0.date), $0) })
+        let today = cal.startOfDay(for: Date())
+        // Row offset: how many rows down from the first weekday is today
+        let todayWeekday = cal.component(.weekday, from: today) // 1=Sun
+        let firstWeekday = cal.firstWeekday // 1=Sun or 2=Mon per locale
+        let rowOffset = (todayWeekday - firstWeekday + 7) % 7
+
+        let totalDays = data.count
+        let weeksBack = (totalDays + rowOffset) / 7
+        let startDate = cal.date(byAdding: .day, value: -(weeksBack * 7 + rowOffset), to: today)!
+
+        var grid: [[DailySummary?]] = []
+        var current = startDate
+        while current <= today {
+            var week: [DailySummary?] = []
+            for _ in 0..<7 {
+                week.append(current <= today ? lookup[current] : nil)
+                current = cal.date(byAdding: .day, value: 1, to: current)!
+            }
+            grid.append(week)
+        }
+        return grid
+    }
+
+    private func weekdayLabel(_ row: Int, cal: Calendar) -> String {
+        // Row 0 is the first day of the week per locale
+        let firstWeekday = cal.firstWeekday // 1=Sun, 2=Mon
+        let weekday = ((firstWeekday - 1 + row) % 7) + 1 // 1-based weekday
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US")
+        let name = f.shortWeekdaySymbols[weekday - 1] // Sun, Mon, ...
+        // Only show every other row
+        return row % 2 == 1 ? name : ""
+    }
+
+    struct MonthLabel {
+        let offset: Int
+        let label: String
+        let span: Int
+    }
+
+    private func buildMonthLabels(grid: [[DailySummary?]], cal: Calendar) -> [MonthLabel] {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US")
+        f.dateFormat = "MMM"
+        var labels: [MonthLabel] = []
+        var lastMonth = -1
+        var spanCount = 0
+
+        for (i, week) in grid.enumerated() {
+            // Use the first day of the week to determine the month
+            let firstDay = week.compactMap({ $0?.date }).min()
+                ?? cal.date(byAdding: .day, value: -(grid.count - 1 - i) * 7, to: Date())!
+            let month = cal.component(.month, from: firstDay)
+
+            if month != lastMonth {
+                if !labels.isEmpty {
+                    labels[labels.count - 1] = MonthLabel(
+                        offset: labels.last!.offset,
+                        label: labels.last!.label,
+                        span: spanCount
+                    )
+                }
+                labels.append(MonthLabel(offset: i, label: f.string(from: firstDay), span: 1))
+                spanCount = 1
+                lastMonth = month
+            } else {
+                spanCount += 1
+            }
+        }
+        if !labels.isEmpty {
+            labels[labels.count - 1] = MonthLabel(
+                offset: labels.last!.offset,
+                label: labels.last!.label,
+                span: spanCount
+            )
+        }
+        return labels
+    }
+
+    private func heatColor(_ intensity: Double) -> Color {
+        switch intensity {
+        case 0:       return Color.primary.opacity(0.06)
+        case ..<0.15: return Color.green.opacity(0.3)
+        case ..<0.4:  return Color.green.opacity(0.5)
+        case ..<0.7:  return Color.green.opacity(0.7)
+        default:      return Color.green.opacity(0.95)
         }
     }
 }

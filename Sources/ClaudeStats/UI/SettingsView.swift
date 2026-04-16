@@ -139,6 +139,15 @@ struct SettingsView: View {
             .pickerStyle(.menu)
             Toggle("Compact menu bar (text only, no icon)", isOn: $store.compactMenuBar)
                 .disabled(store.displayMode == .glyphOnly)
+            Toggle("Show activity heatmap in popover", isOn: Binding(
+                get: { store.showHistory },
+                set: { newValue in
+                    store.showHistory = newValue
+                    if newValue != store.showHistoryAtLaunch {
+                        DispatchQueue.main.async { promptRestart() }
+                    }
+                }
+            ))
             Toggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     let ok = LaunchAtLogin.setEnabled(newValue)
@@ -281,6 +290,26 @@ struct SettingsView: View {
         if args.contains("--debug") { return true }
         if ProcessInfo.processInfo.environment["CLAUDESTATS_DEBUG"] == "1" { return true }
         return false
+    }
+
+    private func promptRestart() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = "Restart required"
+        alert.informativeText = "This change takes effect after restarting ClaudeStats."
+        alert.addButton(withTitle: "Restart now")
+        alert.addButton(withTitle: "Later")
+        alert.alertStyle = .informational
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            // Relaunch the app
+            let url = Bundle.main.bundleURL
+            let task = Process()
+            task.launchPath = "/usr/bin/open"
+            task.arguments = ["-n", url.path]
+            try? task.run()
+            NSApp.terminate(nil)
+        }
     }
 
     @MainActor
