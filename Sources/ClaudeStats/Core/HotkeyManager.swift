@@ -66,7 +66,7 @@ final class HotkeyManager {
         )
 
         // Install handler on the application target
-        let handlerStatus = InstallEventHandler(
+        _ = InstallEventHandler(
             GetApplicationEventTarget(),
             { (_: EventHandlerCallRef?, _: EventRef?, _: UnsafeMutableRawPointer?) -> OSStatus in
                 hotkeyCallback?()
@@ -78,7 +78,7 @@ final class HotkeyManager {
             &handlerRef
         )
         let signature: FourCharCode = 0x434C5354  // "CLST"
-        var hotKeyID = EventHotKeyID(signature: signature, id: 1)
+        let hotKeyID = EventHotKeyID(signature: signature, id: 1)
         RegisterEventHotKey(
             combo.carbonKeyCode,
             combo.carbonModifiers,
