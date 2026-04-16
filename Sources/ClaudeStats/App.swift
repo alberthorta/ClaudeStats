@@ -132,7 +132,7 @@ struct ClaudeStatsApp: App {
 struct MenuBarIconLabel: View {
     let store: StatsStore
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(alignment: .center, spacing: 4) {
             if !store.compactMenuBar {
                 Image(systemName: symbol)
             }
@@ -171,9 +171,10 @@ struct MenuBarIconLabel: View {
             return store.effectiveSignedIn ? "hourglass" : "person.crop.circle.badge.questionmark"
         }
         switch r {
-        case ..<0.95: return "tortoise.fill"
-        case ..<1.10: return "gauge.medium"
-        default:      return "hare.fill"
+        case ..<0.95: return store.glyphUnderPace
+        case ..<1.10: return store.glyphOnPace
+        default:      return store.glyphOverPace
         }
     }
+
 }

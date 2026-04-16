@@ -13,7 +13,7 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 ## What you see
 
 **Menu bar item**
-- A tortoise / gauge / hare glyph indicating whether you're under, on, or over pace
+- Customizable pace glyphs for under / on / over pace (default: tortoise / gauge / hare, 30+ SF Symbols to choose from)
 - Configurable display: % used, % remaining, time to reset, or icon only
 - Compact mode hides the glyph for a minimal footprint
 - If no 5h data is available yet (e.g. cold start), shows hourglass + your weekly percentage
@@ -30,9 +30,10 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai via email (embedded WKWebView), Google (`ASWebAuthenticationSession` in your default browser), or paste your `sessionKey` manually
 - **Menu bar display** — choose between: % used (default), % remaining, time to reset, or icon only
+- **Pace icons** — pick any SF Symbol for under-pace, on-pace, and over-pace states from a curated list of 30+ glyphs (tortoise, gauge, hare, bolt, flame, battery levels, dials, and more)
 - **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
 - **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.
-- **Show activity heatmap in popover** — toggles the inline heatmap; change requires a restart (the app will prompt you).
+- **Show activity heatmap in popover and desktop overlay** — toggles the inline heatmap; change requires a restart (the app will prompt you).
 - **Desktop overlay** — pin a translucent, non-interactive widget with your pace data, activity heatmap, and a watermark pace glyph to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.

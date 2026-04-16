@@ -176,12 +176,13 @@ struct DesktopOverlayView: View {
 
     var body: some View {
         ZStack {
-            // Watermark glyph — 80% of height, centered, behind all content
+            // Watermark glyph — centered behind all content
             GeometryReader { geo in
+                let size = min(geo.size.width, geo.size.height) * 0.7
                 Image(systemName: watermarkSymbol)
-                    .font(.system(size: geo.size.height * 0.9))
+                    .font(.system(size: size))
                     .foregroundStyle(.black.opacity(0.3))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(width: geo.size.width, height: geo.size.height)
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -255,9 +256,9 @@ struct DesktopOverlayView: View {
             return store.effectiveSignedIn ? "hourglass" : "person.crop.circle.badge.questionmark"
         }
         switch r {
-        case ..<0.95: return "tortoise.fill"
-        case ..<1.10: return "gauge.medium"
-        default:      return "hare.fill"
+        case ..<0.95: return store.glyphUnderPace
+        case ..<1.10: return store.glyphOnPace
+        default:      return store.glyphOverPace
         }
     }
 

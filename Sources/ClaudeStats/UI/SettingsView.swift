@@ -139,7 +139,17 @@ struct SettingsView: View {
             .pickerStyle(.menu)
             Toggle("Compact menu bar (text only, no icon)", isOn: $store.compactMenuBar)
                 .disabled(store.displayMode == .glyphOnly)
-            Toggle("Show activity heatmap in popover", isOn: Binding(
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Pace icons")
+                    .font(.callout.weight(.medium))
+                HStack(spacing: 12) {
+                    glyphPicker("Under", selection: $store.glyphUnderPace)
+                    glyphPicker("On", selection: $store.glyphOnPace)
+                    glyphPicker("Over", selection: $store.glyphOverPace)
+                }
+            }
+            Toggle("Show activity heatmap in popover and desktop overlay", isOn: Binding(
                 get: { store.showHistory },
                 set: { newValue in
                     store.showHistory = newValue
@@ -282,6 +292,22 @@ struct SettingsView: View {
             Label(msg, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption)
                 .foregroundStyle(.red)
+        }
+    }
+
+    private func glyphPicker(_ label: String, selection: Binding<String>) -> some View {
+        VStack(spacing: 3) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Picker("", selection: selection) {
+                ForEach(StatsStore.availableGlyphs, id: \.0) { (name, title) in
+                    Label(title, systemImage: name).tag(name)
+                }
+            }
+            .pickerStyle(.menu)
+            .labelsHidden()
+            .frame(maxWidth: .infinity)
         }
     }
 

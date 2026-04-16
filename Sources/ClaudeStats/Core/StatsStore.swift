@@ -36,6 +36,52 @@ final class StatsStore {
         didSet { UserDefaults.standard.set(compactMenuBar, forKey: "compactMenuBar") }
     }
 
+    // Custom glyph for each pace state
+    var glyphUnderPace: String = UserDefaults.standard.string(forKey: "glyphUnderPace") ?? "tortoise.fill" {
+        didSet { UserDefaults.standard.set(glyphUnderPace, forKey: "glyphUnderPace") }
+    }
+    var glyphOnPace: String = UserDefaults.standard.string(forKey: "glyphOnPace") ?? "gauge.medium" {
+        didSet { UserDefaults.standard.set(glyphOnPace, forKey: "glyphOnPace") }
+    }
+    var glyphOverPace: String = UserDefaults.standard.string(forKey: "glyphOverPace") ?? "hare.fill" {
+        didSet { UserDefaults.standard.set(glyphOverPace, forKey: "glyphOverPace") }
+    }
+
+    static let availableGlyphs: [(String, String)] = [
+        ("tortoise.fill", "Tortoise"),
+        ("hare.fill", "Hare"),
+        ("gauge.medium", "Gauge"),
+        ("gauge.with.needle.fill", "Gauge needle"),
+        ("bolt.fill", "Bolt"),
+        ("bolt.circle.fill", "Bolt circle"),
+        ("flame.fill", "Flame"),
+        ("leaf.fill", "Leaf"),
+        ("wind", "Wind"),
+        ("snowflake", "Snowflake"),
+        ("arrow.up.circle.fill", "Arrow up"),
+        ("arrow.down.circle.fill", "Arrow down"),
+        ("arrow.right.circle.fill", "Arrow right"),
+        ("checkmark.circle.fill", "Checkmark"),
+        ("exclamationmark.triangle.fill", "Warning"),
+        ("heart.fill", "Heart"),
+        ("star.fill", "Star"),
+        ("moon.fill", "Moon"),
+        ("sun.max.fill", "Sun"),
+        ("cloud.fill", "Cloud"),
+        ("battery.25", "Battery low"),
+        ("battery.50", "Battery half"),
+        ("battery.75", "Battery high"),
+        ("battery.100", "Battery full"),
+        ("speedometer", "Speedometer"),
+        ("dial.low.fill", "Dial low"),
+        ("dial.medium.fill", "Dial medium"),
+        ("dial.high.fill", "Dial high"),
+        ("metronome.fill", "Metronome"),
+        ("chart.bar.fill", "Chart"),
+        ("infinity", "Infinity"),
+        ("pause.circle.fill", "Pause"),
+    ]
+
     // Frozen at launch — the popover reads this to avoid resizing mid-session.
     let showHistoryAtLaunch: Bool = {
         if UserDefaults.standard.object(forKey: "showHistory") == nil { return true }
