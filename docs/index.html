@@ -89,8 +89,8 @@
       <span class="gradient-text">burning through Claude</span>
     </h1>
     <p class="mt-8 text-lg md:text-xl text-neutral-400 max-w-2xl mx-auto leading-relaxed">
-      A native macOS menu bar app that reads your real Claude Code subscription usage —
-      with pace-aware indicators, a desktop overlay, usage history heatmaps, a global hotkey, and a right-click context menu. Built with NSStatusItem for pixel-perfect rendering.
+      A native macOS menu bar app that shows your real Claude Code subscription usage at a glance —
+      with pace-aware indicators, a desktop overlay, usage history heatmaps, and a global hotkey.
     </p>
     <div class="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
       <a href="https://github.com/alberthorta/ClaudeStats/releases/latest"
@@ -209,47 +209,47 @@
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center text-xl mb-4">🐢</div>
         <h3 class="font-semibold text-lg mb-2">Pace-aware indicators</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Customizable glyphs for under, on, and over pace. Choose from 30+ SF Symbols. Rendered as native template images via NSStatusItem for pixel-perfect icon centering.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">A glance at the menu bar tells you if you're burning fast or cruising comfortably. Customizable icons for under, on, and over pace — pick from 30+ options.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-sky-600 flex items-center justify-center text-xl mb-4">📡</div>
-        <h3 class="font-semibold text-lg mb-2">Server-truth data</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Percentages come directly from Claude's own <code class="text-xs">/usage</code> endpoint — same numbers the /usage page shows. No guessing, no local approximation.</p>
+        <h3 class="font-semibold text-lg mb-2">Real usage data</h3>
+        <p class="text-neutral-400 text-sm leading-relaxed">Shows the exact same numbers as Claude's own usage page. Real reset countdowns and end-of-window projections — no guessing.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-400 to-fuchsia-600 flex items-center justify-center text-xl mb-4">🖥️</div>
         <h3 class="font-semibold text-lg mb-2">Desktop overlay</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Pin a translucent, non-interactive widget to any corner of any screen. Includes pace bars, activity heatmap, and a watermark glyph. Dock-aware positioning.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">Pin a translucent widget to any corner of any screen. See your pace, heatmap, and a subtle watermark icon — always visible, never in the way.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-xl mb-4">📊</div>
         <h3 class="font-semibold text-lg mb-2">Usage history & heatmaps</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">GitHub-style contribution grid, 7-day bar chart, and streak tracker. All from local JSONL logs — no extra endpoints. Cached for instant display.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">GitHub-style activity grid, 7-day bar chart, and streak tracker. See your usage patterns over the last 90 days at a glance.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-xl mb-4">⌨️</div>
         <h3 class="font-semibold text-lg mb-2">Global hotkey</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Set a keyboard shortcut to toggle the popover from anywhere. Uses Carbon RegisterEventHotKey — no Accessibility permissions required.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">Set a keyboard shortcut to open your usage stats from anywhere. No need to find the menu bar icon — just press your combo.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center text-xl mb-4">🔒</div>
         <h3 class="font-semibold text-lg mb-2">Private & native</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">SwiftUI + AppKit (NSStatusItem + NSPopover), no Dock icon, no telemetry, no Electron. Signs in via Google or email. Right-click context menu. Everything stays on your Mac.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">No Dock icon, no telemetry, no analytics. Signs in via Google or email. All data stays on your Mac. Fully open source.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-400 to-pink-600 flex items-center justify-center text-xl mb-4">🎛️</div>
         <h3 class="font-semibold text-lg mb-2">Highly configurable</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Menu bar display mode (% used, % remaining, time to reset, icon only), compact mode, custom pace glyphs, overlay position, monitor selector, and more.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">Choose what the menu bar shows (percentage, time to reset, icon only), pick your pace icons, position the overlay, select monitors, enable compact mode, and more.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-xl mb-4">📈</div>
         <h3 class="font-semibold text-lg mb-2">Per-model breakdown</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">See how your usage splits across Opus, Sonnet, and Haiku — parsed from local Claude Code session logs with billable-token weighting.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">See how your usage splits across Opus, Sonnet, and Haiku within each time window.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-xl mb-4">🔄</div>
         <h3 class="font-semibold text-lg mb-2">Self-updating</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Checks GitHub Releases for updates. One-click install & restart in place — works from <code class="text-xs">/Applications/</code> or anywhere else. Optional auto-check at startup.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">One-click updates from within the app. Optionally checks for new versions at startup so you're always on the latest.</p>
       </div>
     </div>
   </section>
@@ -277,7 +277,7 @@
         <div class="flex-shrink-0 w-8 h-8 rounded-full bg-brand-500 text-white flex items-center justify-center font-semibold">3</div>
         <div>
           <p class="font-semibold mb-1">Sign in to Claude.ai</p>
-          <p class="text-sm text-neutral-400">Click <strong>Settings</strong> in the popover. Sign in with <strong>Google</strong> (opens your default browser), <strong>email</strong> (embedded window), or paste your <code class="text-xs">sessionKey</code> cookie manually.</p>
+          <p class="text-sm text-neutral-400">Click <strong>Settings</strong> in the popover. Sign in with <strong>Google</strong>, <strong>email</strong>, or paste your session cookie manually.</p>
         </div>
       </li>
     </ol>
@@ -296,8 +296,11 @@
         <a href="https://github.com/alberthorta/ClaudeStats/issues" class="hover:text-white transition">Issues</a>
       </div>
     </div>
+    <div class="max-w-6xl mx-auto px-6 pb-4 text-sm text-neutral-500">
+      Made by <a href="mailto:albert@horta.name" class="text-neutral-300 hover:text-white transition">Albert Horta Llobet</a>
+    </div>
     <div class="max-w-6xl mx-auto px-6 pb-8 text-xs text-neutral-600">
-      Built with SwiftUI. Endpoint discovery credit: <a href="https://github.com/she-llac/claude-counter" class="underline decoration-neutral-800 hover:text-neutral-400">she-llac/claude-counter</a> (MIT).
+      Endpoint discovery credit: <a href="https://github.com/she-llac/claude-counter" class="underline decoration-neutral-800 hover:text-neutral-400">she-llac/claude-counter</a> (MIT).
     </div>
   </footer>
 </body>
