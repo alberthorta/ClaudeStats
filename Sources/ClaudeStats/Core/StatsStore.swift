@@ -82,17 +82,17 @@ final class StatsStore {
         ("pause.circle.fill", "Pause"),
     ]
 
-    // Frozen at launch — the popover reads this to avoid resizing mid-session.
-    let showHistoryAtLaunch: Bool = {
-        if UserDefaults.standard.object(forKey: "showHistory") == nil { return true }
-        return UserDefaults.standard.bool(forKey: "showHistory")
-    }()
-
     var showHistory: Bool = {
         if UserDefaults.standard.object(forKey: "showHistory") == nil { return true }
         return UserDefaults.standard.bool(forKey: "showHistory")
     }() {
-        didSet { UserDefaults.standard.set(showHistory, forKey: "showHistory") }
+        didSet {
+            UserDefaults.standard.set(showHistory, forKey: "showHistory")
+            // Delay to let SwiftUI re-layout the overlay content before re-fitting
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [self] in
+                DesktopOverlayManager.shared.update(store: self)
+            }
+        }
     }
 
     // Cached history data — recomputed every 30 minutes, not every reload cycle

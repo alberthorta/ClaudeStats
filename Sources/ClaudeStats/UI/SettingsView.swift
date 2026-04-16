@@ -1,4 +1,30 @@
 import SwiftUI
+import AppKit
+
+enum SettingsWindowController {
+    private static var window: NSWindow?
+
+    @MainActor
+    static func present(store: StatsStore) {
+        if let window {
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return
+        }
+
+        let view = SettingsView(store: store)
+        let hosting = NSHostingController(rootView: view)
+        let win = NSWindow(contentViewController: hosting)
+        win.title = "ClaudeStats Settings"
+        win.setContentSize(NSSize(width: 460, height: 600))
+        win.styleMask = [.titled, .closable]
+        win.isReleasedWhenClosed = false
+        win.center()
+        win.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        window = win
+    }
+}
 
 struct SettingsView: View {
     @Bindable var store: StatsStore
@@ -23,6 +49,9 @@ struct SettingsView: View {
             .frame(width: 460, alignment: .leading)
         }
         .frame(width: 460, height: 600)
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
+            launchAtLogin = LaunchAtLogin.isEnabled
+        }
     }
 
     // MARK: - Sections
@@ -149,15 +178,7 @@ struct SettingsView: View {
                     glyphPicker("Over", selection: $store.glyphOverPace)
                 }
             }
-            Toggle("Show activity heatmap in popover and desktop overlay", isOn: Binding(
-                get: { store.showHistory },
-                set: { newValue in
-                    store.showHistory = newValue
-                    if newValue != store.showHistoryAtLaunch {
-                        DispatchQueue.main.async { promptRestart() }
-                    }
-                }
-            ))
+            Toggle("Show activity heatmap in popover and desktop overlay", isOn: $store.showHistory)
             Toggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
                     let ok = LaunchAtLogin.setEnabled(newValue)
@@ -316,26 +337,6 @@ struct SettingsView: View {
         if args.contains("--debug") { return true }
         if ProcessInfo.processInfo.environment["CLAUDESTATS_DEBUG"] == "1" { return true }
         return false
-    }
-
-    private func promptRestart() {
-        NSApp.activate(ignoringOtherApps: true)
-        let alert = NSAlert()
-        alert.messageText = "Restart required"
-        alert.informativeText = "This change takes effect after restarting ClaudeStats."
-        alert.addButton(withTitle: "Restart now")
-        alert.addButton(withTitle: "Later")
-        alert.alertStyle = .informational
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            // Relaunch the app
-            let url = Bundle.main.bundleURL
-            let task = Process()
-            task.launchPath = "/usr/bin/open"
-            task.arguments = ["-n", url.path]
-            try? task.run()
-            NSApp.terminate(nil)
-        }
     }
 
     @MainActor

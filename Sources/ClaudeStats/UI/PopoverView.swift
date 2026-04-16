@@ -2,14 +2,13 @@ import SwiftUI
 
 struct PopoverView: View {
     @Bindable var store: StatsStore
-    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             section(scope: .window5h)
             Divider()
             section(scope: .week)
-            if store.showHistoryAtLaunch {
+            if store.showHistory {
                 Divider()
                 miniHeatmap
             }
@@ -21,19 +20,16 @@ struct PopoverView: View {
         .onAppear {
             if !store.effectiveSignedIn {
                 NSApp.activate(ignoringOtherApps: true)
-                openSettings()
+                openAppSettings()
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    closeMenuBarPopover()
+                    PopoverToggle.toggle()
                 }
             }
         }
     }
 
-    private func closeMenuBarPopover() {
-        for window in NSApp.windows
-            where String(describing: type(of: window)).contains("MenuBarExtra") {
-            window.close()
-        }
+    private func openAppSettings() {
+        SettingsWindowController.present(store: store)
     }
 
     @ViewBuilder
@@ -87,7 +83,7 @@ struct PopoverView: View {
         if !stats.tokensByModel.isEmpty {
             let total = stats.tokensByModel.reduce(0) { $0 + $1.1 }
             VStack(alignment: .leading, spacing: 3) {
-                ForEach(stats.tokensByModel, id: \.0) { (name, tokens) in
+                ForEach(stats.tokensByModel.filter { percent($0.1, of: total) > 0 }, id: \.0) { (name, tokens) in
                     HStack {
                         Text(prettify(name))
                             .font(.system(.caption, design: .rounded))
@@ -137,7 +133,7 @@ struct PopoverView: View {
                 .font(.caption)
             Button("Settings") {
                 NSApp.activate(ignoringOtherApps: true)
-                openSettings()
+                openAppSettings()
             }
             .buttonStyle(.borderless)
             .font(.caption)

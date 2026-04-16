@@ -49,6 +49,10 @@ final class DesktopOverlayManager {
             let num = screen.screenNumber
             screenMap[num] = screen
             if let win = windows[num] {
+                if let hosting = win.contentViewController as? NSHostingController<DesktopOverlayView> {
+                    let fittingSize = hosting.view.fittingSize
+                    win.setContentSize(fittingSize)
+                }
                 repositionWindow(win, on: screen, position: store.overlayPosition)
             } else {
                 let win = makeOverlayWindow(for: screen, store: store)
@@ -186,6 +190,14 @@ struct DesktopOverlayView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("ClaudeStats")
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white.opacity(0.9))
+                    Text("v\(UpdateChecker.currentVersion)")
+                        .font(.system(.caption, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.35))
+                }
                 if let pace = store.effectiveFiveHourPace {
                     overlaySection(title: "5-hour window", pace: pace,
                                    resetText: store.windowResetText)
@@ -199,7 +211,7 @@ struct DesktopOverlayView: View {
                         .font(.system(.callout, design: .rounded))
                         .foregroundStyle(.white.opacity(0.7))
                 }
-                if store.showHistoryAtLaunch && !store.cachedSummaries.isEmpty {
+                if store.showHistory && !store.cachedSummaries.isEmpty {
                     overlayHeatmap
                 }
                 Text(store.secondsUntilRefresh > 0 ? "Refresh in \(store.secondsUntilRefresh)s" : "Refreshing…")
