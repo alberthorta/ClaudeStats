@@ -1,6 +1,9 @@
 import SwiftUI
 import WebKit
 import AppKit
+import AuthenticationServices
+
+// MARK: - WKWebView-based sign-in (email login)
 
 enum SignInWindowController {
     private static var window: NSWindow?
@@ -38,7 +41,7 @@ enum SignInWindowController {
 
 private struct SignInView: View {
     let onCaptured: () -> Void
-    @State private var status: String = "Sign in with email — Google may refuse embedded windows"
+    @State private var status: String = "Sign in with your email account"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -73,7 +76,9 @@ private struct ClaudeWebView: NSViewRepresentable {
     let onSessionCaptured: (String) -> Void
 
     func makeNSView(context: Context) -> WKWebView {
+        let dataStore = WKWebsiteDataStore.nonPersistent()
         let config = WKWebViewConfiguration()
+        config.websiteDataStore = dataStore
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
@@ -108,5 +113,74 @@ private struct ClaudeWebView: NSViewRepresentable {
         let onCaptured: (String) -> Void
         init(onCaptured: @escaping (String) -> Void) { self.onCaptured = onCaptured }
         deinit { timer?.invalidate() }
+    }
+}
+
+// MARK: - ASWebAuthenticationSession-based sign-in (Google login)
+
+final class GoogleSignInHelper: NSObject, ASWebAuthenticationPresentationContextProviding {
+    static let shared = GoogleSignInHelper()
+    private var session: ASWebAuthenticationSession?
+    private var pollTimer: Timer?
+
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        NSApp.keyWindow ?? NSApp.windows.first ?? ASPresentationAnchor()
+    }
+
+    @MainActor
+    func start(onComplete: @escaping (Result<String, Error>) -> Void) {
+        // Use ASWebAuthenticationSession which opens a real Safari sheet.
+        // Google allows OAuth here because it's not an embedded WKWebView.
+        // We use a dummy callback scheme — the session stays open until
+        // the user closes it or we cancel it after detecting the cookie.
+        let session = ASWebAuthenticationSession(
+            url: URL(string: "https://claude.ai/login")!,
+            callbackURLScheme: "claudestats"
+        ) { [weak self] _, error in
+            // Session was dismissed (user closed it or we cancelled it).
+            // Check if the cookie made it into shared HTTPCookieStorage.
+            self?.pollTimer?.invalidate()
+            self?.pollTimer = nil
+
+            if let cookies = HTTPCookieStorage.shared.cookies(for: URL(string: "https://claude.ai")!),
+               let sk = cookies.first(where: { $0.name == "sessionKey" }) {
+                onComplete(.success(sk.value))
+                return
+            }
+
+            // Cookie not in shared storage — user needs to paste manually.
+            if let error, (error as NSError).code == ASWebAuthenticationSessionError.canceledLogin.rawValue {
+                onComplete(.failure(GoogleSignInError.needsManualPaste))
+            } else {
+                onComplete(.failure(GoogleSignInError.needsManualPaste))
+            }
+        }
+
+        session.prefersEphemeralWebBrowserSession = false
+        session.presentationContextProvider = self
+        self.session = session
+
+        // Poll HTTPCookieStorage while the session is active — if the cookie
+        // appears we can auto-cancel the session and complete immediately.
+        pollTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            if let cookies = HTTPCookieStorage.shared.cookies(for: URL(string: "https://claude.ai")!),
+               let sk = cookies.first(where: { $0.name == "sessionKey" }) {
+                self?.pollTimer?.invalidate()
+                self?.pollTimer = nil
+                self?.session?.cancel()
+                self?.session = nil
+                onComplete(.success(sk.value))
+            }
+        }
+
+        session.start()
+    }
+
+    enum GoogleSignInError: LocalizedError {
+        case needsManualPaste
+
+        var errorDescription: String? {
+            "Google login completed but the cookie couldn't be captured automatically. Please paste your sessionKey manually below."
+        }
     }
 }

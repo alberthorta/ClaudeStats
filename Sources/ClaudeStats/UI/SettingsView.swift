@@ -7,6 +7,7 @@ struct SettingsView: View {
     @State private var installing: Bool = false
     @State private var installError: String?
     @State private var showPasteField: Bool = false
+    @State private var googleSignInStatus: String?
 
     var body: some View {
         ScrollView {
@@ -37,10 +38,35 @@ struct SettingsView: View {
             }
 
             HStack(spacing: 8) {
-                Button(store.isSignedIn ? "Re-authenticate" : "Sign in to Claude.ai") {
+                Button(store.isSignedIn ? "Re-authenticate (email)" : "Sign in with email") {
                     SignInWindowController.present {
                         store.isSignedIn = ClaudeAIClient.hasSession
                         Task { await store.refreshRemote() }
+                    }
+                }
+                Button("Sign in with Google") {
+                    googleSignInStatus = nil
+                    GoogleSignInHelper.shared.start { result in
+                        Task { @MainActor in
+                            switch result {
+                            case .success(let key):
+                                ClaudeAIClient.storeSessionKey(key)
+                                googleSignInStatus = "Captured — fetching organization…"
+                                do {
+                                    let orgId = try await ClaudeAIClient.fetchOrgId()
+                                    ClaudeAIClient.storeOrgId(orgId)
+                                    store.isSignedIn = true
+                                    await store.refreshRemote()
+                                    googleSignInStatus = nil
+                                } catch {
+                                    store.remoteError = error.localizedDescription
+                                    googleSignInStatus = nil
+                                }
+                            case .failure(let error):
+                                googleSignInStatus = error.localizedDescription
+                                showPasteField = true
+                            }
+                        }
                     }
                 }
                 if store.isSignedIn {
@@ -49,24 +75,21 @@ struct SettingsView: View {
                 Spacer(minLength: 0)
             }
 
+            if let status = googleSignInStatus {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
             if let err = store.remoteError {
                 Text(err)
                     .font(.caption)
                     .foregroundStyle(.red)
             }
 
-            Text("Opens a login window. Your session cookie is stored locally.")
+            Text("Email opens an embedded window. Google opens your default browser for OAuth compatibility.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
-                Text("\u{201C}Continue with Google\u{201D} isn't supported. Google blocks sign-in inside embedded web views — use email login or paste the sessionKey manually below.")
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 8) {
                 Button {

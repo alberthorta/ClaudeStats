@@ -26,7 +26,7 @@ Built in pure SwiftUI. No Dock icon, no telemetry, no background services.
 - Countdown to next reset
 
 **Settings** (Settings button in the popover)
-- Sign in to Claude.ai (WKWebView-based) or paste your `sessionKey` manually
+- Sign in to Claude.ai via email (embedded WKWebView), Google (`ASWebAuthenticationSession` in your default browser), or paste your `sessionKey` manually
 - **Show remaining percentage in menu bar** — toggle between "% used" (default) and "% left" for the menu bar number
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
@@ -101,13 +101,12 @@ The build script:
 
 ## Signing in
 
-Inside the app, click **Settings** → **Sign in to Claude.ai**. A login window opens at `claude.ai/login`.
+Inside the app, open **Settings** to sign in.
 
 **Supported login methods:**
-- Email (magic link won't work inside the embedded window, but if your browser session is already authenticated via the same cookie, you may not need to log in again)
-- Manual cookie paste — expand "Paste sessionKey manually" in Settings
-
-**Not supported:** "Continue with Google". Google refuses OAuth inside embedded `WKWebView` sessions as an anti-phishing measure. Use email or the manual paste option.
+- **Google** — uses `ASWebAuthenticationSession`, which opens your default browser (Safari, Chrome, Edge, etc.) for OAuth. Google can't block this because it's a real browser, not an embedded web view. After login, the app polls `HTTPCookieStorage` to auto-capture the `sessionKey` cookie. If auto-capture fails, you'll be prompted to paste the cookie manually.
+- **Email** — opens an embedded WKWebView at `claude.ai/login`. Magic link won't work inside the embedded window, but if your browser session is already authenticated via the same cookie, you may not need to log in again.
+- **Manual cookie paste** — expand "Paste sessionKey manually" in Settings (always works as a fallback).
 
 **Manual paste flow:**
 1. Open claude.ai in Safari or Chrome while logged in
@@ -158,7 +157,7 @@ ClaudeStats/
 │   └── UI/
 │       ├── PopoverView.swift           Main popover layout + PaceView
 │       ├── SettingsView.swift          Sign-in, display, launch-at-login, updates
-│       ├── SignInWindow.swift          WKWebView-based cookie capture
+│       ├── SignInWindow.swift          WKWebView (email) + ASWebAuthenticationSession (Google)
 │       └── AboutWindow.swift           About panel
 └── scripts/
     ├── build-app.sh                    swift build → .app bundle → codesign
