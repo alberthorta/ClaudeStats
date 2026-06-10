@@ -14,7 +14,7 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 
 **Menu bar item**
 - Customizable pace glyphs for under / on / over pace (default: tortoise / gauge / hare, 30+ SF Symbols to choose from)
-- Configurable display: % used, % remaining, time to reset, or icon only
+- Configurable display: % used, % remaining, % used / % pace, time to reset, or icon only
 - Compact mode hides the glyph for a minimal footprint
 - If no 5h data is available yet (e.g. cold start), shows hourglass + your weekly percentage
 - If not signed in, shows a question-mark icon + "ClaudeStats" — clicking it goes straight to Settings
@@ -30,7 +30,7 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai via email (embedded WKWebView), Google (`ASWebAuthenticationSession` in your default browser), or paste your `sessionKey` manually
-- **Menu bar display** — choose between: % used (default), % remaining, time to reset, or icon only
+- **Menu bar display** — choose between: % used (default), % remaining, % used / % pace, time to reset, or icon only. The **% used / % pace** mode shows two numbers side by side — how much of your window budget you've actually consumed vs. the theoretical percentage you'd be at if you'd burned it evenly over elapsed time. If the first number is below the second you're ahead of budget; above it, you're burning fast.
 - **Pace icons** — pick any SF Symbol for under-pace, on-pace, and over-pace states from a curated list of 30+ glyphs (tortoise, gauge, hare, bolt, flame, battery levels, dials, and more)
 - **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
 - **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.

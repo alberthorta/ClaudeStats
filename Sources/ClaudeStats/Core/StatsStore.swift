@@ -12,6 +12,7 @@ final class StatsStore {
     enum DisplayMode: String, CaseIterable, Identifiable {
         case used = "% used"
         case remaining = "% remaining"
+        case usedPace = "% used / % pace"
         case timeToReset = "Time to reset"
         case glyphOnly = "Icon only"
         var id: String { rawValue }

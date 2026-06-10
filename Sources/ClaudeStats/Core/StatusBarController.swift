@@ -157,6 +157,7 @@ final class StatusBarController {
         switch store.displayMode {
         case .used:      return "\(Int((pace.used * 100).rounded()))%"
         case .remaining: return "\(Int(((1 - pace.used) * 100).rounded()))%"
+        case .usedPace: return "\(Int((pace.used * 100).rounded()))% / \(Int((pace.elapsed * 100).rounded()))%"
         case .timeToReset: return resetText
         case .glyphOnly: return ""
         }
