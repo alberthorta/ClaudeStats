@@ -12,10 +12,16 @@ MACOS="${CONTENTS}/MacOS"
 RESOURCES="${CONTENTS}/Resources"
 
 echo "▶ Building release binary…"
-swift build -c release --arch arm64 --arch x86_64 2>/dev/null \
-    || swift build -c release
+# Prefer a universal (arm64 + x86_64) build; fall back to a native build.
+# IMPORTANT: --show-bin-path must use the SAME arch flags as the build, or it
+# points at a different (possibly stale) product directory.
+ARCH_FLAGS=(--arch arm64 --arch x86_64)
+if ! swift build -c release "${ARCH_FLAGS[@]}" 2>/dev/null; then
+    ARCH_FLAGS=()
+    swift build -c release
+fi
 
-BINARY="$(swift build -c release --show-bin-path)/${APP_NAME}"
+BINARY="$(swift build -c release "${ARCH_FLAGS[@]}" --show-bin-path)/${APP_NAME}"
 if [[ ! -f "${BINARY}" ]]; then
     echo "✗ Binary not found at ${BINARY}" >&2
     exit 1
