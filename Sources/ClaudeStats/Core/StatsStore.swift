@@ -167,9 +167,7 @@ final class StatsStore {
 
     /// Time until the 5h window resets, per the server-provided ISO timestamp.
     var windowResetText: String {
-        guard let iso = remote?.fiveHour?.resetsAt,
-              let date = ISO8601DateFormatter.flexible.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
-        else { return "—" }
+        guard let iso = remote?.fiveHour?.resetsAt, let date = Self.parseDate(iso) else { return "—" }
         let secs = max(0, Int(date.timeIntervalSinceNow))
         let h = secs / 3600, m = (secs % 3600) / 60
         return h > 0 ? "\(h)h \(m)m" : "\(m)m"
@@ -283,32 +281,64 @@ final class StatsStore {
     }
 
     var fiveHourPace: Pace? {
-        guard let util = remote?.fiveHour?.utilizationFraction,
-              let iso = remote?.fiveHour?.resetsAt,
-              let reset = ISO8601DateFormatter.flexible.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
-        else { return nil }
-        let duration: Double = 5 * 3600
-        let remaining = max(0, reset.timeIntervalSinceNow)
-        let elapsed = max(0, min(1, 1 - remaining / duration))
-        return Pace(used: util, elapsed: elapsed)
+        pace(used: remote?.fiveHour?.utilizationFraction,
+             resetsAt: remote?.fiveHour?.resetsAt,
+             duration: 5 * 3600)
     }
 
     var weeklyPace: Pace? {
-        guard let util = remote?.sevenDay?.utilizationFraction,
-              let iso = remote?.sevenDay?.resetsAt,
-              let reset = ISO8601DateFormatter.flexible.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
-        else { return nil }
-        let duration: Double = 7 * 24 * 3600
+        pace(used: remote?.sevenDay?.utilizationFraction,
+             resetsAt: remote?.sevenDay?.resetsAt,
+             duration: 7 * 24 * 3600)
+    }
+
+    private func pace(used: Double?, resetsAt iso: String?, duration: Double) -> Pace? {
+        guard let used, let iso, let reset = Self.parseDate(iso) else { return nil }
         let remaining = max(0, reset.timeIntervalSinceNow)
         let elapsed = max(0, min(1, 1 - remaining / duration))
-        return Pace(used: util, elapsed: elapsed)
+        return Pace(used: used, elapsed: elapsed)
+    }
+
+    private static func parseDate(_ iso: String) -> Date? {
+        ISO8601DateFormatter.flexible.date(from: iso) ?? ISO8601DateFormatter().date(from: iso)
+    }
+
+    /// A per-model or per-surface weekly cap reported by claude.ai next to the global
+    /// weekly limit — currently Fable, but the shape is generic.
+    struct ScopedLimit: Identifiable {
+        let id: String
+        let title: String
+        let pace: Pace
+        let resetText: String
+    }
+
+    var scopedWeeklyLimits: [ScopedLimit] {
+        (remote?.limits ?? []).compactMap { limit in
+            guard limit.kind == "weekly_scoped",
+                  let label = limit.scopeLabel,
+                  let pace = pace(used: limit.utilizationFraction,
+                                  resetsAt: limit.resetsAt,
+                                  duration: 7 * 24 * 3600)
+            else { return nil }
+            return ScopedLimit(
+                id: limit.scopeIdentity ?? label,
+                title: "Weekly · \(label)",
+                pace: pace,
+                resetText: Self.dayHourCountdown(limit.resetsAt) ?? "—"
+            )
+        }
+    }
+
+    var effectiveScopedWeeklyLimits: [ScopedLimit] {
+        simulation == .signedOut ? [] : scopedWeeklyLimits
     }
 
     var weeklyResetText: String? {
-        guard let iso = remote?.sevenDay?.resetsAt,
-              let date = ISO8601DateFormatter.flexible.date(from: iso) ?? ISO8601DateFormatter().date(from: iso) else {
-            return nil
-        }
+        Self.dayHourCountdown(remote?.sevenDay?.resetsAt)
+    }
+
+    private static func dayHourCountdown(_ iso: String?) -> String? {
+        guard let iso, let date = parseDate(iso) else { return nil }
         let secs = max(0, Int(date.timeIntervalSinceNow))
         let d = secs / 86400, h = (secs % 86400) / 3600
         return d > 0 ? "\(d)d \(h)h" : "\(h)h"

@@ -11,6 +11,74 @@ extension ISO8601DateFormatter {
 struct RemoteUsage: Decodable {
     let fiveHour: Window?
     let sevenDay: Window?
+    let limits: [Limit]?
+
+    /// Decodes one limit independently of its siblings, so a single entry in an
+    /// unfamiliar shape costs us that entry rather than the whole array.
+    private struct LenientLimit: Decodable {
+        let value: Limit?
+        init(from decoder: Decoder) throws {
+            value = try? Limit(from: decoder)
+        }
+    }
+
+    /// An entry of the generic `limits` array claude.ai returns alongside the legacy
+    /// `five_hour` / `seven_day` objects. Scoped entries (`weekly_scoped`) carry a
+    /// per-model or per-surface cap — that is where the Fable weekly cap arrives.
+    /// Only the fields the app actually reads are modelled, and all are optional:
+    /// anything else claude.ai sends is one more thing that could fail the decode.
+    struct Limit: Decodable {
+        let kind: String?
+        let percent: Double?
+        let resetsAt: String?
+        let scope: Scope?
+
+        struct Scope: Decodable {
+            let model: Label?
+            let surface: Label?
+        }
+
+        /// `surface` has only ever been observed as null, so accept either a bare
+        /// string or a `{id, display_name}` object rather than guess at one.
+        struct Label: Decodable {
+            let displayName: String?
+
+            init(from decoder: Decoder) throws {
+                if let single = try? decoder.singleValueContainer(),
+                   let text = try? single.decode(String.self) {
+                    displayName = text
+                    return
+                }
+                let container = try? decoder.container(keyedBy: CodingKeys.self)
+                displayName = try? container?.decodeIfPresent(String.self, forKey: .displayName)
+            }
+
+            enum CodingKeys: String, CodingKey {
+                case displayName = "display_name"
+            }
+        }
+
+        enum CodingKeys: String, CodingKey {
+            case kind, percent, scope
+            case resetsAt = "resets_at"
+        }
+
+        var utilizationFraction: Double? {
+            percent.map { max(0, min(1, $0 / 100)) }
+        }
+
+        /// Name to label this cap with, e.g. "Fable".
+        var scopeLabel: String? {
+            scope?.model?.displayName ?? scope?.surface?.displayName
+        }
+
+        /// Model and surface combined, so two caps on the same model but different
+        /// surfaces stay distinct as SwiftUI identities.
+        var scopeIdentity: String? {
+            let parts = [scope?.model?.displayName, scope?.surface?.displayName].compactMap { $0 }
+            return parts.isEmpty ? nil : parts.joined(separator: "/")
+        }
+    }
 
     struct Window: Decodable {
         /// 0-100 (percent used). Clamp & convert to 0-1 where needed.
@@ -30,6 +98,17 @@ struct RemoteUsage: Decodable {
     enum CodingKeys: String, CodingKey {
         case fiveHour = "five_hour"
         case sevenDay = "seven_day"
+        case limits
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fiveHour = try c.decodeIfPresent(Window.self, forKey: .fiveHour)
+        sevenDay = try c.decodeIfPresent(Window.self, forKey: .sevenDay)
+        // Deliberately non-throwing: an unrecognised limit entry must not take the
+        // 5h and weekly sections down with it.
+        let decoded = try? c.decodeIfPresent([LenientLimit].self, forKey: .limits)
+        limits = decoded?.compactMap(\.value)
     }
 }
 

@@ -23,6 +23,7 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 **Popover** (click the menu bar item)
 - **5-hour window** section with a pace bar: a colored fill shows how much of your window budget you've consumed, and a vertical marker shows where you should be based on elapsed time. If the fill is left of the marker you're ahead of budget; right of it, you're burning fast.
 - **Weekly** section with the same pace visualization for your 7-day cap
+- **Per-model weekly caps** — when claude.ai reports a model-scoped weekly limit (e.g. **Fable**) it gets its own pace section, with the same bar and projection as the global weekly cap. Appears automatically when the limit exists on your account; nothing to configure.
 - **Activity heatmap** — GitHub-style contribution grid showing the last 8 weeks of daily usage intensity (togglable in Settings, applies live)
 - Per-model breakdown (opus / sonnet / haiku) as share of the window's total (models with 0% are hidden)
 - Projected end-of-window utilization
@@ -35,7 +36,7 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 - **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
 - **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.
 - **Show activity heatmap in popover and desktop overlay** — toggles the inline heatmap; applies live, no restart needed.
-- **Desktop overlay** — pin a translucent, non-interactive widget with a title, pace data, activity heatmap, watermark pace glyph, and refresh countdown to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
+- **Desktop overlay** — pin a translucent, non-interactive widget with a title, pace data (including any model-scoped weekly caps), activity heatmap, watermark pace glyph, and refresh countdown to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 - **Check for updates automatically at startup** — when enabled, the app checks for a newer release each launch and shows a native macOS confirmation dialog (Update now / Later) before installing.

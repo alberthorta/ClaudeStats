@@ -8,6 +8,10 @@ struct PopoverView: View {
             section(scope: .window5h)
             Divider()
             section(scope: .week)
+            ForEach(store.effectiveScopedWeeklyLimits) { limit in
+                Divider()
+                PaceView(pace: limit.pace, title: limit.title, resetText: limit.resetText)
+            }
             if store.showHistory {
                 Divider()
                 miniHeatmap

@@ -206,6 +206,10 @@ struct DesktopOverlayView: View {
                     overlaySection(title: "Weekly", pace: pace,
                                    resetText: store.weeklyResetText ?? "—")
                 }
+                ForEach(store.effectiveScopedWeeklyLimits) { limit in
+                    overlaySection(title: limit.title, pace: limit.pace,
+                                   resetText: limit.resetText)
+                }
                 if store.effectiveFiveHourPace == nil && store.effectiveWeeklyPace == nil {
                     Text(store.effectiveSignedIn ? "Loading…" : "Not signed in")
                         .font(.system(.callout, design: .rounded))
