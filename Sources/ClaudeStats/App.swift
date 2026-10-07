@@ -79,16 +79,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+// Plain AppKit entry point. A SwiftUI `App` needs at least one scene, and the empty `Settings` scene
+// it used to declare was opened at launch on macOS 27 as a blank "ClaudeStats Settings" window.
 @main
-struct ClaudeStatsApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+enum ClaudeStatsMain {
+    @MainActor
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AppDelegate()
+        app.delegate = delegate
+        app.mainMenu = makeMainMenu()
+        app.run()
+    }
 
-    var body: some Scene {
-        // No visible scenes — the status item and popover are managed by
-        // StatusBarController. Settings opens as a standalone NSWindow.
-        // A WindowGroup is required to satisfy the Scene protocol.
-        Settings {
-            EmptyView()
-        }
+    // Never shown (LSUIElement), but its key equivalents are what make ⌘C / ⌘V / ⌘A work in
+    // text fields and in the sign-in web view.
+    @MainActor
+    private static func makeMainMenu() -> NSMenu {
+        let main = NSMenu()
+
+        let appItem = NSMenuItem()
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Quit ClaudeStats", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        appItem.submenu = appMenu
+        main.addItem(appItem)
+
+        let editItem = NSMenuItem()
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        editItem.submenu = edit
+        main.addItem(editItem)
+
+        let windowItem = NSMenuItem()
+        let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        windowItem.submenu = window
+        main.addItem(windowItem)
+
+        return main
     }
 }
