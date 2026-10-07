@@ -58,11 +58,8 @@
     .squircle {
       border-radius: 22%;
     }
-    .pace-fill {
-      background: linear-gradient(90deg, #34d399 0%, #fbbf24 55%, #f97316 85%, #ef4444 100%);
-    }
     .heatmap-cell {
-      border-radius: 2px;
+      border-radius: 3px;
     }
   </style>
 </head>
@@ -117,105 +114,86 @@
           <span>🐢 42%</span>
           <span>Fri 16:04</span>
         </div>
-        <!-- 5h section -->
-        <div class="mb-6">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-2xl font-semibold">5-hour window</div>
-              <div class="text-emerald-400 text-sm font-medium mt-1">Under pace</div>
+        <!-- 5h card -->
+        <div class="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-5 mb-4">
+          <div class="flex items-center gap-5">
+            <svg viewBox="0 0 112 112" class="w-28 h-28 shrink-0">
+              <circle cx="56" cy="56" r="47" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="10"/>
+              <circle cx="56" cy="56" r="47" fill="none" stroke="#63e6be" stroke-width="10" stroke-linecap="round"
+                      stroke-dasharray="124 295.3" transform="rotate(-90 56 56)" style="filter: drop-shadow(0 0 4px rgba(99,230,190,.45))"/>
+              <rect x="54.5" y="2" width="3" height="16" fill="#fff" transform="rotate(180 56 56)"/>
+              <image href="spark.png" x="36" y="36" width="40" height="40"/>
+            </svg>
+            <div class="min-w-0">
+              <div class="text-lg font-semibold">5-hour window</div>
+              <div class="flex items-baseline gap-1.5"><span class="text-3xl font-bold">42%</span><span class="text-xs text-neutral-400">used</span></div>
+              <span class="inline-flex items-center gap-1 mt-1 px-2.5 py-0.5 rounded-full bg-[#63e6be]/15 text-xs font-semibold"><span class="text-[#63e6be]">●</span> Under pace</span>
+              <div class="mt-2 space-y-0.5 text-xs text-neutral-400">
+                <div>Resets in 2h 31m</div>
+                <div>50% of window elapsed</div>
+                <div>Projecting 84% at reset</div>
+              </div>
             </div>
-            <div class="text-right text-xs text-neutral-400 font-mono">
-              <div>Resets in 2h 51m</div>
-              <div>projecting 60% at reset</div>
-            </div>
           </div>
-          <!-- pace bar -->
-          <div class="relative h-3 rounded-full bg-white/10 mt-4 overflow-hidden">
-            <div class="pace-fill absolute inset-y-0 left-0" style="width: 42%"></div>
+          <div class="mt-4 flex gap-[2px] h-[5px] rounded-full overflow-hidden">
+            <div class="bg-[#CC6A4A]" style="width:72%"></div><div class="bg-[#7472F5]" style="width:28%"></div>
           </div>
-          <div class="relative h-0">
-            <div class="absolute top-[-22px] -translate-x-1/2" style="left: 50%;">
-              <div class="w-[3px] h-6 bg-white rounded-full ring-2 ring-black/60 shadow-md"></div>
-            </div>
-          </div>
-          <div class="mt-4 flex items-center gap-4 text-xs text-neutral-400 font-mono">
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>used 42%</span>
-            <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-white/80"></span>elapsed 50%</span>
-          </div>
-          <div class="mt-4 space-y-1 text-sm">
-            <div class="flex justify-between"><span>opus 4 6</span><span class="text-neutral-400 font-mono">72%</span></div>
-            <div class="flex justify-between"><span>sonnet 4 5</span><span class="text-neutral-400 font-mono">28%</span></div>
+          <div class="mt-2 flex gap-5 text-[11px] text-neutral-400">
+            <span><span class="text-[#CC6A4A]">●</span> Opus 4.6 <span class="text-neutral-500">72%</span></span>
+            <span><span class="text-[#7472F5]">●</span> Sonnet 4.5 <span class="text-neutral-500">28%</span></span>
           </div>
         </div>
-        <!-- Weekly section -->
-        <div class="border-t border-white/5 pt-6 mb-6">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-2xl font-semibold">Weekly</div>
-              <div class="text-amber-400 text-sm font-medium mt-1">On pace</div>
-            </div>
-            <div class="text-right text-xs text-neutral-400 font-mono">
-              <div>Resets in 4d 2h</div>
-              <div>projecting 98% at reset</div>
-            </div>
-          </div>
-          <div class="relative h-3 rounded-full bg-white/10 mt-4 overflow-hidden">
-            <div class="pace-fill absolute inset-y-0 left-0" style="width: 55%"></div>
-          </div>
-          <div class="relative h-0">
-            <div class="absolute top-[-22px] -translate-x-1/2" style="left: 57%;">
-              <div class="w-[3px] h-6 bg-white rounded-full ring-2 ring-black/60 shadow-md"></div>
-            </div>
-          </div>
-        </div>
-        <!-- Weekly · Fable section -->
-        <div class="border-t border-white/5 pt-6 mb-6">
-          <div class="flex items-start justify-between">
-            <div>
-              <div class="text-2xl font-semibold">Weekly · Fable</div>
-              <div class="text-emerald-400 text-sm font-medium mt-1">Well under pace</div>
-            </div>
-            <div class="text-right text-xs text-neutral-400 font-mono">
-              <div>Resets in 4d 2h</div>
-              <div>projecting 70% at reset</div>
-            </div>
-          </div>
-          <div class="relative h-3 rounded-full bg-white/10 mt-4 overflow-hidden">
-            <div class="pace-fill absolute inset-y-0 left-0" style="width: 40%"></div>
-          </div>
-          <div class="relative h-0">
-            <div class="absolute top-[-22px] -translate-x-1/2" style="left: 57%;">
-              <div class="w-[3px] h-6 bg-white rounded-full ring-2 ring-black/60 shadow-md"></div>
+        <!-- Weekly card: one ring per cap -->
+        <div class="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-5 mb-4">
+          <div class="flex items-center gap-5">
+            <svg viewBox="0 0 112 112" class="w-28 h-28 shrink-0">
+              <circle cx="56" cy="56" r="47.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+              <circle cx="56" cy="56" r="47.5" fill="none" stroke="#ffd43b" stroke-width="7" stroke-linecap="round"
+                      stroke-dasharray="164 298.5" transform="rotate(-90 56 56)"/>
+              <circle cx="56" cy="56" r="37" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="7"/>
+              <circle cx="56" cy="56" r="37" fill="none" stroke="#51cf66" stroke-width="7" stroke-linecap="round"
+                      stroke-dasharray="93 232.5" transform="rotate(-90 56 56)"/>
+              <rect x="54.5" y="1" width="3" height="27" fill="#fff" transform="rotate(205 56 56)"/>
+              <g transform="translate(42 42)" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2.2" stroke-linejoin="round">
+                <rect x="2" y="4" width="24" height="21" rx="4"/><path d="M2 10h24M9 1v6M19 1v6"/>
+              </g>
+            </svg>
+            <div class="min-w-0 flex-1">
+              <div class="text-lg font-semibold mb-2">Weekly</div>
+              <div class="flex items-baseline justify-between text-sm"><span class="text-neutral-400"><span class="text-[#ffd43b]">◎</span> All models</span><span class="text-xl font-bold">55%</span></div>
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#ffd43b]/15 text-xs font-semibold"><span class="text-[#ffd43b]">●</span> On pace</span>
+              <div class="flex items-baseline justify-between text-sm mt-2"><span class="text-neutral-400"><span class="text-[#51cf66]">◉</span> Fable</span><span class="text-xl font-bold">40%</span></div>
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#51cf66]/15 text-xs font-semibold"><span class="text-[#51cf66]">●</span> Well under pace</span>
+              <div class="mt-2 text-xs text-neutral-400">Resets in 4d 2h · 57% of week elapsed</div>
             </div>
           </div>
         </div>
         <!-- Activity heatmap mock -->
-        <div class="border-t border-white/5 pt-6">
+        <div class="rounded-2xl bg-white/[0.04] border border-white/[0.06] p-5">
           <div class="flex items-center justify-between mb-3">
             <div class="text-lg font-semibold">Activity</div>
-            <div class="text-xs text-neutral-500">14 days streak</div>
+            <div class="text-xs text-neutral-400"><span class="text-[#CC6A4A]">🔥</span> 14 days streak</div>
           </div>
-          <div class="flex gap-[3px]">
-            <!-- 9 weeks of heatmap cells -->
+          <div class="flex gap-[4px]">
             <script>
-              // Generate heatmap inline (static mock)
+              // Static mock: random levels of the terracotta ramp the app uses.
               document.currentScript.insertAdjacentHTML('beforebegin',
-                Array.from({length: 9}, (_, w) =>
-                  '<div class="flex flex-col gap-[3px]">' +
+                Array.from({length: 13}, (_, w) =>
+                  '<div class="flex flex-col gap-[4px] flex-1">' +
                   Array.from({length: 7}, (_, d) => {
                     const r = Math.random();
-                    const opacity = r < 0.15 ? '0.06' : r < 0.4 ? '0.3' : r < 0.65 ? '0.5' : r < 0.85 ? '0.7' : '0.95';
-                    return `<div class="w-[28px] h-[28px] heatmap-cell" style="background: rgba(52,211,153,${opacity})"></div>`;
+                    const bg = r < 0.2 ? 'rgba(255,255,255,0.08)' : `rgba(204,106,74,${r < 0.45 ? 0.3 : r < 0.7 ? 0.52 : r < 0.88 ? 0.76 : 1})`;
+                    return `<div class="h-[18px] heatmap-cell" style="background: ${bg}"></div>`;
                   }).join('') +
                   '</div>'
                 ).join('')
               );
             </script>
           </div>
-          <div class="mt-4 flex items-center justify-between text-xs text-neutral-500">
-            <span>v0.11</span>
-            <span>Refresh in 24s</span>
-          </div>
+        </div>
+        <div class="mt-4 flex items-center justify-between text-xs text-neutral-500 px-1">
+          <span>v0.12</span>
+          <span class="tracking-[0.5em]">↻ ▥ ⚙ ⓘ ⏻</span>
         </div>
       </div>
     </div>
@@ -240,7 +218,7 @@
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-fuchsia-400 to-fuchsia-600 flex items-center justify-center text-xl mb-4">🖥️</div>
         <h3 class="font-semibold text-lg mb-2">Desktop overlay</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">Pin a translucent widget to any corner of any screen. See your pace, heatmap, and a subtle watermark icon — always visible, never in the way.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">Pin a glass widget to any corner of any screen, with the same ring gauges as the popover and your activity heatmap — always visible, never in the way.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-xl mb-4">📊</div>
@@ -265,7 +243,7 @@
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center text-xl mb-4">📈</div>
         <h3 class="font-semibold text-lg mb-2">Per-model usage &amp; caps</h3>
-        <p class="text-neutral-400 text-sm leading-relaxed">See how your usage splits across models within each time window — and when a model has its own weekly cap, like Fable, it gets its own pace bar.</p>
+        <p class="text-neutral-400 text-sm leading-relaxed">See how your usage splits across models within each time window — and when a model has its own weekly cap, like Fable, it gets its own ring in the weekly gauge.</p>
       </div>
       <div class="p-6 rounded-2xl bg-white/5 border border-white/10 backdrop-blur hover:bg-white/10 transition">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-400 to-indigo-600 flex items-center justify-center text-xl mb-4">🔄</div>

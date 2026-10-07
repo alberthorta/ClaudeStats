@@ -151,7 +151,7 @@ final class StatsStore {
     private var timer: Timer?
     private var countdownTimer: Timer?
     private var lastReloadTime: Date = Date()
-    private let refreshInterval: Double = 30
+    let refreshInterval: Double = 30
     var secondsUntilRefresh: Int = 30
 
     init() {

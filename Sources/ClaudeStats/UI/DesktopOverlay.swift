@@ -178,93 +178,60 @@ extension NSScreen {
 struct DesktopOverlayView: View {
     @Bindable var store: StatsStore
 
+    private static let width: CGFloat = 300
+    private static let padding: CGFloat = 16
+
     var body: some View {
-        ZStack {
-            // Watermark glyph — centered behind all content
-            GeometryReader { geo in
-                let size = min(geo.size.width, geo.size.height) * 0.7
-                Image(systemName: watermarkSymbol)
-                    .font(.system(size: size))
-                    .foregroundStyle(.black.opacity(0.3))
-                    .frame(width: geo.size.width, height: geo.size.height)
-            }
-
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("ClaudeStats")
-                        .font(.system(.title2, design: .rounded).weight(.bold))
-                        .foregroundStyle(.white.opacity(0.9))
-                    Text("v\(UpdateChecker.currentVersion)")
-                        .font(.system(.caption, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.35))
-                }
-                if let pace = store.effectiveFiveHourPace {
-                    overlaySection(title: "5-hour window", pace: pace,
-                                   resetText: store.windowResetText)
-                }
-                if let pace = store.effectiveWeeklyPace {
-                    overlaySection(title: "Weekly", pace: pace,
-                                   resetText: store.weeklyResetText ?? "—")
-                }
-                ForEach(store.effectiveScopedWeeklyLimits) { limit in
-                    overlaySection(title: limit.title, pace: limit.pace,
-                                   resetText: limit.resetText)
-                }
-                if store.effectiveFiveHourPace == nil && store.effectiveWeeklyPace == nil {
-                    Text(store.effectiveSignedIn ? "Loading…" : "Not signed in")
-                        .font(.system(.callout, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.7))
-                }
-                if store.showHistory && !store.cachedSummaries.isEmpty {
-                    overlayHeatmap
-                }
-                Text(store.secondsUntilRefresh > 0 ? "Refresh in \(store.secondsUntilRefresh)s" : "Refreshing…")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.3))
-                    .monospacedDigit()
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-        }
-        .padding(14)
-        .frame(width: 310)
-        .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var overlayHeatmap: some View {
-        let cal = Calendar.current
-        let data = Array(store.cachedSummaries.suffix(56))
-        let grid = buildHeatmapGrid(data: data, cal: cal)
-        let spacing: CGFloat = 2
-        // 310 - 2*14 padding = 282 inner width
-        let columns = CGFloat(max(grid.count, 1))
-        let cellSize = floor((282 - spacing * (columns - 1)) / columns)
-
-        return VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text("Activity")
-                    .font(.system(.caption, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.8))
-                Spacer()
-                Text("\(store.cachedStreak)d streak")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.4))
-            }
-            HStack(alignment: .top, spacing: spacing) {
-                ForEach(0..<grid.count, id: \.self) { col in
-                    VStack(spacing: spacing) {
-                        ForEach(0..<7, id: \.self) { row in
-                            if let summary = grid[col][row] {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(overlayHeatColor(summary.intensity))
-                                    .frame(width: cellSize, height: cellSize / 4)
-                            } else {
-                                Color.clear.frame(width: cellSize, height: cellSize / 4)
-                            }
-                        }
+        VStack(alignment: .leading, spacing: 12) {
+            let rings = store.weeklyRings
+            if store.effectiveFiveHourPace != nil || !rings.isEmpty {
+                HStack(alignment: .top, spacing: 12) {
+                    if let pace = store.effectiveFiveHourPace {
+                        fiveHourColumn(pace)
+                    }
+                    if !rings.isEmpty {
+                        weeklyColumn(rings)
                     }
                 }
+                // Both columns take the taller one's height, so the "Resets in" lines share a baseline.
+                .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Label(store.effectiveSignedIn ? "Loading…" : "Not signed in",
+                      systemImage: store.effectiveSignedIn ? "hourglass" : "person.crop.circle.badge.questionmark")
+                    .font(.system(.callout, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            if store.showHistory && !store.cachedSummaries.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Activity")
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.8))
+                        Spacer()
+                        if store.cachedStreak > 0 {
+                            Label("\(store.cachedStreak)d streak", systemImage: "flame.fill")
+                                .font(.system(size: 10.5, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.45))
+                        }
+                    }
+                    ActivityHeatmap(data: Array(store.cachedSummaries.suffix(70)), weeks: 10,
+                                    width: Self.width - Self.padding * 2,
+                                    showLabels: false, cellAspect: 0.35, onDark: true, spacing: 2)
+                }
             }
         }
+        .padding(Self.padding)
+        .frame(width: Self.width)
+        .background(alignment: .bottomTrailing) {
+            Image(systemName: watermarkSymbol)
+                .font(.system(size: 120, weight: .regular))
+                .foregroundStyle(.white.opacity(0.035))
+                .offset(x: 18, y: 18)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .darkGlass(cornerRadius: 18)
+        .environment(\.colorScheme, .dark)
     }
 
     private var watermarkSymbol: String {
@@ -278,93 +245,85 @@ struct DesktopOverlayView: View {
         }
     }
 
-    private func buildHeatmapGrid(data: [DailySummary], cal: Calendar) -> [[DailySummary?]] {
-        let lookup = Dictionary(uniqueKeysWithValues: data.map { (cal.startOfDay(for: $0.date), $0) })
-        let today = cal.startOfDay(for: Date())
-        let todayWeekday = cal.component(.weekday, from: today)
-        let firstWeekday = cal.firstWeekday
-        let rowOffset = (todayWeekday - firstWeekday + 7) % 7
-
-        let weeksBack = (data.count + rowOffset) / 7
-        let startDate = cal.date(byAdding: .day, value: -(weeksBack * 7 + rowOffset), to: today)!
-
-        var grid: [[DailySummary?]] = []
-        var current = startDate
-        while current <= today {
-            var week: [DailySummary?] = []
-            for _ in 0..<7 {
-                week.append(current <= today ? lookup[current] : nil)
-                current = cal.date(byAdding: .day, value: 1, to: current)!
-            }
-            grid.append(week)
+    private func fiveHourColumn(_ pace: StatsStore.Pace) -> some View {
+        VStack(spacing: 6) {
+            PaceRing(pace: pace, size: 84)
+                .padding(.bottom, 2)
+            columnTitle("5-hour window")
+            Text(percentText(pace.used))
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .contentTransition(.numericText(value: pace.used))
+                .animation(Theme.springy, value: pace.used)
+            statusLabel(pace)
+            Spacer(minLength: 0)
+            footnote("Resets in \(store.windowResetText)")
         }
-        return grid
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func overlayHeatColor(_ intensity: Double) -> Color {
-        switch intensity {
-        case 0:       return .white.opacity(0.06)
-        case ..<0.15: return .green.opacity(0.3)
-        case ..<0.4:  return .green.opacity(0.45)
-        case ..<0.7:  return .green.opacity(0.65)
-        default:      return .green.opacity(0.9)
-        }
-    }
-
-    private func overlaySection(title: String, pace: StatsStore.Pace, resetText: String) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(title)
-                    .font(.system(.callout, design: .rounded).weight(.semibold))
-                    .foregroundStyle(.white)
-                Spacer()
-                Text(pace.label)
-                    .font(.system(.caption, design: .rounded).weight(.medium))
-                    .foregroundStyle(paceColor(pace))
-            }
-            overlayPaceBar(pace: pace)
-                .frame(height: 10)
-            HStack(spacing: 8) {
-                Text("Used \(pctText(pace.used))")
-                    .foregroundStyle(paceColor(pace))
-                Text("Resets in \(resetText)")
-                    .foregroundStyle(.white.opacity(0.5))
-            }
-            .font(.system(.caption, design: .rounded))
-            .monospacedDigit()
-        }
-    }
-
-    private func overlayPaceBar(pace: StatsStore.Pace) -> some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(.white.opacity(0.15))
-                RoundedRectangle(cornerRadius: 3)
-                    .fill(paceColor(pace).gradient)
-                    .frame(width: geo.size.width * CGFloat(min(1, pace.used)))
-                // Elapsed marker
-                ZStack {
-                    Capsule().fill(Color.black.opacity(0.5)).frame(width: 4)
-                    Capsule().fill(Color.white).frame(width: 2)
+    private func weeklyColumn(_ rings: [WeeklyRing]) -> some View {
+        let sameReset = Set(rings.map(\.resetText)).count == 1
+        return VStack(spacing: 6) {
+            PaceRing(paces: rings.map(\.pace), symbol: "calendar", size: 84)
+                .padding(.bottom, 2)
+            columnTitle("Weekly")
+            VStack(spacing: 4) {
+                ForEach(Array(rings.enumerated()), id: \.element.id) { i, ring in
+                    HStack(spacing: 5) {
+                        if rings.count > 1 {
+                            RingIndexIcon(count: rings.count, index: i, color: ring.pace.color, size: 11)
+                        }
+                        Text(ring.name)
+                            .font(.system(size: 10.5, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.65))
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        Text(percentText(ring.pace.used))
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                            .monospacedDigit()
+                            .contentTransition(.numericText(value: ring.pace.used))
+                        Image(systemName: ring.pace.symbol)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(ring.pace.color)
+                            .help(ring.pace.label)
+                    }
+                    .animation(Theme.springy, value: ring.pace.used)
+                    if !sameReset {
+                        footnote("Resets in \(ring.resetText)")
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
                 }
-                .frame(height: 14)
-                .offset(x: geo.size.width * CGFloat(min(1, pace.elapsed)) - 2)
+            }
+            Spacer(minLength: 0)
+            if sameReset, let first = rings.first {
+                footnote("Resets in \(first.resetText)")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func paceColor(_ pace: StatsStore.Pace) -> Color {
-        switch pace.ratio {
-        case ..<0.75:  return .green
-        case ..<0.95:  return .mint
-        case ..<1.10:  return .yellow
-        case ..<1.35:  return .orange
-        default:       return .red
-        }
+    private func columnTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+            .foregroundStyle(.white.opacity(0.85))
+            .lineLimit(1)
     }
 
-    private func pctText(_ v: Double) -> String {
-        "\(Int((v * 100).rounded()))%"
+    private func statusLabel(_ pace: StatsStore.Pace) -> some View {
+        Label(pace.label, systemImage: pace.symbol)
+            .font(.system(size: 10.5, weight: .medium, design: .rounded))
+            .foregroundStyle(pace.color)
+            .lineLimit(1)
+    }
+
+    private func footnote(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, design: .rounded))
+            .foregroundStyle(.white.opacity(0.45))
+            .monospacedDigit()
+            .lineLimit(1)
     }
 }

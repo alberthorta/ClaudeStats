@@ -21,13 +21,13 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 - Right-click context menu with Settings, About, Quit, and a Launch at Login toggle
 
 **Popover** (click the menu bar item)
-- **5-hour window** section with a pace bar: a colored fill shows how much of your window budget you've consumed, and a vertical marker shows where you should be based on elapsed time. If the fill is left of the marker you're ahead of budget; right of it, you're burning fast.
-- **Weekly** section with the same pace visualization for your 7-day cap
-- **Per-model weekly caps** — when claude.ai reports a model-scoped weekly limit (e.g. **Fable**) it gets its own pace section, with the same bar and projection as the global weekly cap. Appears automatically when the limit exists on your account; nothing to configure.
-- **Activity heatmap** — GitHub-style contribution grid showing the last 8 weeks of daily usage intensity (togglable in Settings, applies live)
-- Per-model breakdown (opus / sonnet / haiku) as share of the window's total (models with 0% are hidden)
-- Projected end-of-window utilization
-- Countdown to next reset and live refresh countdown
+- **5-hour window** card with a ring gauge: the colored arc shows how much of your window budget you've consumed, and a marker shows where you should be based on elapsed time. If the arc ends before the marker you're ahead of budget; past it, you're burning fast. The ring color follows your pace (green → mint → yellow → orange → red).
+- **Weekly** card with one ring per weekly cap in the same gauge: the outer ring is the global 7-day cap, and each **per-model weekly cap** (e.g. **Fable**) adds an inner ring with its own pace color. A cap appears automatically when it exists on your account; nothing to configure.
+- Pace status, reset countdown, elapsed time and projected end-of-window usage for every limit
+- Per-model breakdown (Opus / Sonnet / Haiku) as a segmented bar with a legend, for the 5-hour window and the week
+- **Activity heatmap** — GitHub-style grid of the last 13 weeks; each day is shaded relative to your busiest day in view (togglable in Settings, applies live)
+- Icon footer (Refresh, History, Settings, About, Quit) and a small ring that counts down to the next refresh
+- Subtle animations: gauges fill in when the popover opens, numbers roll when they change
 
 **Settings** (Settings button in the popover)
 - Sign in to Claude.ai via email (embedded WKWebView), Google (`ASWebAuthenticationSession` in your default browser), or paste your `sessionKey` manually
@@ -36,15 +36,15 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 - **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
 - **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.
 - **Show activity heatmap in popover and desktop overlay** — toggles the inline heatmap; applies live, no restart needed.
-- **Desktop overlay** — pin a translucent, non-interactive widget with a title, pace data (including any model-scoped weekly caps), activity heatmap, watermark pace glyph, and refresh countdown to any corner of any screen. Respects Dock placement and repositions instantly when the Dock shows/hides.
+- **Desktop overlay** — pin a glass, non-interactive widget to any corner of any screen: the 5-hour and weekly ring gauges side by side (including any model-scoped weekly caps), the activity heatmap, and a watermark pace glyph. Respects Dock placement and repositions instantly when the Dock shows/hides.
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 - **Check for updates automatically at startup** — when enabled, the app checks for a newer release each launch and shows a native macOS confirmation dialog (Update now / Later) before installing.
 
 **Usage History** (History button in the popover footer)
-- **Streak tracker** — consecutive days of Claude usage and total active days in the last 90 days
-- **Last 7 days** — bar chart of daily billable token usage with color-coded intensity
-- **Usage heatmap** — full 12-week GitHub-style contribution grid with month labels, weekday labels, and tooltips
+- **Stat tiles** — current streak, active days in the last 90 days, tokens in the last 7 days, and your best day
+- **Last 14 days** — Swift Charts bar chart of daily billable tokens, stacked by model, with a hover tooltip per day
+- **Activity heatmap** — 13-week GitHub-style grid with month labels, weekday labels, and tooltips
 
 **About** (About button in the popover footer)
 - App icon, current version, author, contact email, project URL, and license link.
@@ -71,7 +71,7 @@ Your `sessionKey` cookie is stored in your app preferences plist. Cleared when y
 
 ## System requirements
 
-- **macOS 14 Sonoma** or later (uses `MenuBarExtra`, `@Observable`, `openSettings` environment action)
+- **macOS 14 Sonoma** or later (uses `@Observable` and Swift Charts). On macOS 26 or later the desktop overlay uses Liquid Glass; earlier versions get a translucent material instead.
 - Apple Silicon or Intel (universal binary)
 - A paid Claude subscription (Pro, Max 5×, or Max 20×) — the app doesn't support Free or API-key-only accounts
 - Claude Code installed locally — used for the per-model breakdown via `~/.claude/projects/`
@@ -108,7 +108,7 @@ python3 scripts/make-icon.py
 
 The build script:
 1. Runs `swift build -c release` (arm64 + x86_64 when possible, falls back to host arch)
-2. Assembles `build/ClaudeStats.app` with `Info.plist`, binary, and icon
+2. Assembles `build/ClaudeStats.app` with `Info.plist`, binary, icon, and SwiftPM resource bundles
 3. Ad-hoc codesigns the bundle (required for `SMAppService` to work)
 
 ---
@@ -158,7 +158,8 @@ ClaudeStats/
 │   ├── Info.plist                      LSUIElement=true, bundle metadata
 │   └── AppIcon.icns                    generated by scripts/make-icon.py
 ├── Sources/ClaudeStats/
-│   ├── App.swift                       @main entry, AppDelegate, PopoverToggle
+│   ├── App.swift                       AppKit @main entry, AppDelegate, PopoverToggle
+│   ├── Resources/                      spark images for the 5-hour gauge
 │   ├── Core/
 │   │   ├── JsonlUsageReader.swift      Streams ~/.claude/projects/*/*.jsonl for per-model split
 │   │   ├── StatsStore.swift            Observable store, pace math, remote refresh
@@ -172,8 +173,10 @@ ClaudeStats/
 │   │   ├── HotkeyManager.swift        Carbon RegisterEventHotKey global shortcut
 │   │   └── UsageHistory.swift         Daily summaries, streak calculation, heatmap data
 │   └── UI/
-│       ├── PopoverView.swift           Main popover layout + PaceView + MiniHeatmapGrid
-│       ├── HistoryView.swift           Usage History window (bar chart, heatmap, streak)
+│       ├── Theme.swift                 Shared colors, cards, gauges, pace bar, heatmap, icon buttons
+│       ├── SupperGauge.swift           Ring gauge (vendored copy of the SupperGauge package)
+│       ├── PopoverView.swift           Main popover layout
+│       ├── HistoryView.swift           Usage History window (stat tiles, Swift Charts, heatmap)
 │       ├── SettingsView.swift          Sign-in, display, launch-at-login, updates
 │       ├── SignInWindow.swift          WKWebView (email) + ASWebAuthenticationSession (Google)
 │       ├── DesktopOverlay.swift        Non-interactive desktop widget + overlay manager

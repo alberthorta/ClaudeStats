@@ -31,6 +31,8 @@ private struct AboutView: View {
                 Image(nsImage: appIcon)
                     .resizable()
                     .frame(width: 96, height: 96)
+                    .shadow(color: Theme.accent.opacity(0.35), radius: 18, y: 6)
+                    .entrance(0)
             } else {
                 Image(systemName: "sparkles")
                     .font(.system(size: 60))
@@ -44,6 +46,7 @@ private struct AboutView: View {
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
+            .entrance(1)
 
             Divider().padding(.horizontal, 40)
 
@@ -54,6 +57,7 @@ private struct AboutView: View {
                 linkRow(label: "License", text: "MIT", url: URL(string: "https://github.com/alberthorta/ClaudeStats/blob/main/LICENSE")!)
             }
             .font(.callout)
+            .entrance(2)
 
             Spacer()
 

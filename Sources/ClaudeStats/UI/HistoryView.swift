@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Charts
 
 // MARK: - History Window Controller
 
@@ -18,8 +19,13 @@ enum HistoryWindowController {
         let hosting = NSHostingController(rootView: view)
         let win = NSWindow(contentViewController: hosting)
         win.title = "Usage History"
-        win.setContentSize(NSSize(width: 520, height: 560))
-        win.styleMask = [.titled, .closable, .resizable]
+        win.titlebarAppearsTransparent = true
+        win.titleVisibility = .hidden
+        win.styleMask = [.titled, .closable, .resizable, .fullSizeContentView]
+        win.setContentSize(NSSize(width: HistoryView.width, height: 660))
+        // Content is laid out at a fixed width; only let the window grow vertically.
+        win.contentMinSize = NSSize(width: HistoryView.width, height: 420)
+        win.contentMaxSize = NSSize(width: HistoryView.width, height: 4000)
         win.isReleasedWhenClosed = false
         win.center()
         win.makeKeyAndOrderFront(nil)
@@ -33,330 +39,241 @@ enum HistoryWindowController {
 struct HistoryView: View {
     let store: StatsStore
 
+    static let width: CGFloat = 580
+    private static let padding: CGFloat = 22
+    private static let cardInnerWidth = width - padding * 2 - 28
+
     var body: some View {
         let summaries = store.cachedSummaries
-        let streak = store.cachedStreak
-        let last7 = Array(summaries.suffix(7))
-        let heatmapData = Array(summaries.suffix(12 * 7))
+        let last7 = summaries.suffix(7)
+        let active = summaries.filter { $0.eventCount > 0 }
+        let busiest = summaries.max { $0.billableTokens < $1.billableTokens }
 
         ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                streakSection(streak: streak, totalDays: summaries.filter { $0.eventCount > 0 }.count)
-                barChartSection(days: last7)
-                heatmapSection(data: heatmapData)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Usage History")
+                    .font(.system(.largeTitle, design: .rounded).weight(.bold))
+                    .padding(.top, 8)
+                    .entrance(0)
+
+                HStack(spacing: 10) {
+                    StatTile(symbol: "flame.fill", value: Double(store.cachedStreak),
+                             text: "\(store.cachedStreak)",
+                             label: store.cachedStreak == 1 ? "day streak" : "days streak")
+                    StatTile(symbol: "calendar", value: Double(active.count),
+                             text: "\(active.count)", label: "active days (90d)")
+                    StatTile(symbol: "sum", value: Double(last7.reduce(0) { $0 + $1.billableTokens }),
+                             text: compactTokens(last7.reduce(0) { $0 + $1.billableTokens }),
+                             label: "tokens, last 7 days")
+                    StatTile(symbol: "trophy.fill", value: Double(busiest?.billableTokens ?? 0),
+                             text: compactTokens(busiest?.billableTokens ?? 0),
+                             label: busiest.map { "best day · \(Self.shortDate.string(from: $0.date))" } ?? "best day")
+                }
+                .entrance(1)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionTitle("Last 14 days", subtitle: "Billable tokens per day, by model")
+                    DailyUsageChart(days: Array(summaries.suffix(14)))
+                        .frame(height: 190)
+                }
+                .card()
+                .entrance(2)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        sectionTitle("Activity", subtitle: "Last 13 weeks")
+                        Spacer()
+                        heatLegend
+                    }
+                    ActivityHeatmap(data: summaries, weeks: 13, width: Self.cardInnerWidth,
+                                    cellAspect: 0.5, spacing: 4)
+                }
+                .card()
+                .entrance(3)
             }
-            .padding(24)
+            .padding(.horizontal, Self.padding)
+            .padding(.bottom, Self.padding)
+            .padding(.top, 30)
         }
-        .frame(minWidth: 480, minHeight: 400)
+        .frame(width: Self.width)
+        .frame(minHeight: 420)
     }
 
-    // MARK: - Streak
-
-    private func streakSection(streak: Int, totalDays: Int) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Activity")
-                .font(.system(.title3, design: .rounded).weight(.semibold))
-            HStack(spacing: 12) {
-                statBox(value: "\(streak)", label: streak == 1 ? "day streak" : "days streak")
-                statBox(value: "\(totalDays)", label: "active days (90d)")
-            }
-        }
-    }
-
-    private func statBox(value: String, label: String) -> some View {
-        VStack(spacing: 2) {
-            Text(value)
-                .font(.system(.title, design: .rounded).weight(.bold))
-            Text(label)
-                .font(.caption)
+    private func sectionTitle(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(title)
+                .font(.system(.headline, design: .rounded))
+            Text(subtitle)
+                .font(.system(.caption, design: .rounded))
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
-        .padding(12)
-        .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
     }
 
-    // MARK: - Bar Chart (last 7 days)
-
-    private func barChartSection(days: [DailySummary]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Last 7 days")
-                .font(.system(.title3, design: .rounded).weight(.semibold))
-            BarChartView(days: days)
-                .frame(height: 120)
-                .padding(14)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-        }
-    }
-
-    // MARK: - Heatmap
-
-    private func heatmapSection(data: [DailySummary]) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Usage heatmap")
-                .font(.system(.title3, design: .rounded).weight(.semibold))
-            HeatmapView(data: data)
-                .padding(14)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 10))
-        }
-    }
-}
-
-// MARK: - Bar Chart
-
-struct BarChartView: View {
-    let days: [DailySummary]
-
-    var body: some View {
-        let maxTokens = max(1, days.map(\.billableTokens).max() ?? 1)
-        GeometryReader { geo in
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(days) { day in
-                    VStack(spacing: 4) {
-                        Spacer(minLength: 0)
-                        if day.billableTokens > 0 {
-                            Text(shortTokens(day.billableTokens))
-                                .font(.system(size: 9, design: .rounded))
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                        }
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(barColor(day).gradient)
-                            .frame(height: max(2, geo.size.height * 0.75 * CGFloat(day.billableTokens) / CGFloat(maxTokens)))
-                        Text(dayLabel(day.date))
-                            .font(.system(size: 10, design: .rounded))
-                            .foregroundStyle(.secondary)
-                    }
-                }
+    private var heatLegend: some View {
+        HStack(spacing: 3) {
+            Text("Less")
+            ForEach([0.0, 0.1, 0.3, 0.6, 1.0], id: \.self) { level in
+                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
+                    .fill(Theme.heatColor(level))
+                    .frame(width: 10, height: 10)
             }
+            Text("More")
         }
+        .font(.system(size: 9.5, design: .rounded))
+        .foregroundStyle(.secondary)
     }
 
-    private func barColor(_ day: DailySummary) -> Color {
-        switch day.intensity {
-        case ..<0.15: return .green
-        case ..<0.4:  return .mint
-        case ..<0.7:  return .orange
-        default:      return .red
-        }
-    }
-
-    private func dayLabel(_ date: Date) -> String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return "Today" }
+    private static let shortDate: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US")
-        f.dateFormat = "EEE"
-        return f.string(from: date)
-    }
-
-    private func shortTokens(_ n: Int) -> String {
-        if n >= 1_000_000 { return String(format: "%.1fM", Double(n) / 1_000_000) }
-        if n >= 1_000 { return "\(n / 1000)k" }
-        return "\(n)"
-    }
+        f.dateFormat = "MMM d"
+        return f
+    }()
 }
 
-// MARK: - Heatmap (GitHub-style)
+// MARK: - Stat tile
 
-struct HeatmapView: View {
-    let data: [DailySummary]
-    private let spacing: CGFloat = 3
-    private let dayLabelWidth: CGFloat = 24
+private struct StatTile: View {
+    let symbol: String
+    let value: Double
+    let text: String
+    let label: String
 
     var body: some View {
-        let cal = Calendar.current
-        let grid = buildGrid(cal: cal)
-
         VStack(alignment: .leading, spacing: 6) {
-            // Month labels
-            monthLabelsRow(grid: grid, cal: cal)
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Theme.accent)
+                .frame(width: 24, height: 24)
+                .background(Theme.accent.opacity(0.14), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+            Text(text)
+                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .contentTransition(.numericText(value: value))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(label)
+                .font(.system(size: 10.5, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .card()
+    }
+}
 
-            // Grid: rows = weekdays, columns = weeks
-            GeometryReader { geo in
-                let gridWidth = geo.size.width - dayLabelWidth - spacing
-                let columns = CGFloat(max(grid.count, 1))
-                let cellSize = (gridWidth - spacing * (columns - 1)) / columns
+// MARK: - Daily chart
 
-                HStack(alignment: .top, spacing: spacing) {
-                    // Day labels
-                    VStack(spacing: spacing) {
-                        ForEach(0..<7, id: \.self) { row in
-                            let label = weekdayLabel(row)
-                            if !label.isEmpty {
-                                Text(label)
-                                    .font(.system(size: 9, design: .rounded))
-                                    .foregroundStyle(.secondary)
-                                    .frame(width: dayLabelWidth, height: cellSize, alignment: .trailing)
-                            } else {
-                                Color.clear.frame(width: dayLabelWidth, height: cellSize)
-                            }
-                        }
+private struct DailyUsageChart: View {
+    let days: [DailySummary]
+    @State private var selected: Date?
+    @State private var grow = false
+
+    private struct Point: Identifiable {
+        let day: Date
+        let family: ModelFamily
+        let tokens: Int
+        var id: String { "\(day.timeIntervalSince1970)-\(family)" }
+    }
+
+    private static let locale = Locale(identifier: "en_US")
+
+    private var points: [Point] {
+        days.flatMap { day in
+            var acc: [ModelFamily: Int] = [:]
+            for (model, tokens) in day.tokensByModel { acc[ModelFamily(model: model), default: 0] += tokens }
+            return ModelFamily.allCases.compactMap { f in
+                acc[f].map { Point(day: day.date, family: f, tokens: $0) }
+            }
+        }
+    }
+
+    private var presentFamilies: [ModelFamily] {
+        let used = Set(points.map(\.family))
+        return ModelFamily.allCases.filter(used.contains)
+    }
+
+    var body: some View {
+        let selectedDay = selected.flatMap { sel in
+            days.first { Calendar.current.isDate($0.date, inSameDayAs: sel) }
+        }
+        Chart {
+            ForEach(points) { p in
+                BarMark(
+                    x: .value("Day", p.day, unit: .day),
+                    y: .value("Tokens", grow ? p.tokens : 0),
+                    width: .ratio(0.62)
+                )
+                .foregroundStyle(by: .value("Model", p.family.name))
+                .cornerRadius(3)
+                .opacity(selectedDay == nil || Calendar.current.isDate(p.day, inSameDayAs: selectedDay!.date) ? 1 : 0.35)
+            }
+            if let selectedDay {
+                RuleMark(x: .value("Day", selectedDay.date, unit: .day))
+                    .foregroundStyle(Color.primary.opacity(0.12))
+                    .lineStyle(StrokeStyle(lineWidth: 1))
+                    .zIndex(-1)
+                    .annotation(position: .top, spacing: 4,
+                                overflowResolution: .init(x: .fit(to: .chart), y: .disabled)) {
+                        tooltip(selectedDay)
                     }
-
-                    ForEach(0..<grid.count, id: \.self) { col in
-                        VStack(spacing: spacing) {
-                            ForEach(0..<7, id: \.self) { row in
-                                if let summary = grid[col][row] {
-                                    RoundedRectangle(cornerRadius: 2)
-                                        .fill(heatColor(summary.intensity))
-                                        .frame(width: cellSize, height: cellSize)
-                                        .help(tooltipText(summary))
-                                } else {
-                                    Color.clear.frame(width: cellSize, height: cellSize)
-                                }
-                            }
-                        }
+            }
+        }
+        .chartForegroundStyleScale(
+            domain: presentFamilies.map(\.name),
+            range: presentFamilies.map(\.color)
+        )
+        .chartLegend(position: .bottom, alignment: .leading, spacing: 10)
+        .chartXAxis {
+            AxisMarks(values: .stride(by: .day, count: 2)) { _ in
+                AxisValueLabel(format: .dateTime.month(.abbreviated).day().locale(Self.locale), centered: true)
+                    .font(.system(size: 9.5, design: .rounded))
+            }
+        }
+        .chartYAxis {
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+                AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [2, 3]))
+                    .foregroundStyle(Color.primary.opacity(0.12))
+                AxisValueLabel {
+                    if let n = value.as(Int.self) {
+                        Text(compactTokens(n)).font(.system(size: 9.5, design: .rounded))
                     }
                 }
             }
-            .frame(height: gridHeight(grid: grid))
-
-            // Legend
-            HStack(spacing: 4) {
-                Spacer()
-                Text("Less")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-                ForEach([0.0, 0.15, 0.4, 0.7, 1.0], id: \.self) { level in
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(heatColor(level))
-                        .frame(width: 12, height: 12)
-                }
-                Text("More")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            }
+        }
+        .chartXSelection(value: $selected)
+        .animation(.easeOut(duration: 0.15), value: selected)
+        .onAppear {
+            withAnimation(.spring(duration: 0.8, bounce: 0.12).delay(0.15)) { grow = true }
         }
     }
 
-    private func monthLabelsRow(grid: [[DailySummary?]], cal: Calendar) -> some View {
-        let labels = monthLabels(grid: grid, cal: cal)
-        let totalColumns = grid.count
-        return GeometryReader { geo in
-            let gridWidth = geo.size.width - dayLabelWidth - spacing
-            let colWidth = totalColumns > 0 ? gridWidth / CGFloat(totalColumns) : 0
-            ZStack(alignment: .leading) {
-                ForEach(labels, id: \.offset) { item in
-                    Text(item.label)
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .position(
-                            x: dayLabelWidth + spacing + CGFloat(item.offset) * colWidth + 12,
-                            y: 6
-                        )
-                }
-            }
+    private func tooltip(_ day: DailySummary) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(day.date, format: .dateTime.weekday(.abbreviated).month(.abbreviated).day().locale(Self.locale))
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+            Text("\(compactTokens(day.billableTokens)) tokens · \(day.eventCount) requests")
+                .font(.system(size: 10, design: .rounded))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
         }
-        .frame(height: 14)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
     }
+}
 
-    private func gridHeight(grid: [[DailySummary?]]) -> CGFloat {
-        // Estimate based on available width (~460 inner width minus padding)
-        let estimatedWidth: CGFloat = 430 - dayLabelWidth - spacing
-        let columns = CGFloat(max(grid.count, 1))
-        let cellSize = (estimatedWidth - spacing * (columns - 1)) / columns
-        return 7 * cellSize + 6 * spacing
-    }
-
-    private func buildGrid(cal: Calendar) -> [[DailySummary?]] {
-        let lookup = Dictionary(uniqueKeysWithValues: data.map { (cal.startOfDay(for: $0.date), $0) })
-        let today = cal.startOfDay(for: Date())
-        let todayWeekday = cal.component(.weekday, from: today)
-        let firstWeekday = cal.firstWeekday
-        let rowOffset = (todayWeekday - firstWeekday + 7) % 7
-        let totalDays = data.count > 0 ? max(data.count, 7 * 12) : 7 * 12
-
-        let weeksBack = (totalDays + rowOffset) / 7
-        let startDate = cal.date(byAdding: .day, value: -(weeksBack * 7 + rowOffset), to: today)!
-
-        var grid: [[DailySummary?]] = []
-        var current = startDate
-
-        while current <= today {
-            var week: [DailySummary?] = []
-            for _ in 0..<7 {
-                if current <= today {
-                    week.append(lookup[current])
-                } else {
-                    week.append(nil)
-                }
-                current = cal.date(byAdding: .day, value: 1, to: current)!
-            }
-            grid.append(week)
+extension ModelFamily {
+    var name: String {
+        switch self {
+        case .opus:   return "Opus"
+        case .sonnet: return "Sonnet"
+        case .haiku:  return "Haiku"
+        case .fable:  return "Fable"
+        case .other:  return "Other"
         }
-        return grid
-    }
-
-    private func heatColor(_ intensity: Double) -> Color {
-        switch intensity {
-        case 0:       return Color.primary.opacity(0.06)
-        case ..<0.15: return Color.green.opacity(0.3)
-        case ..<0.4:  return Color.green.opacity(0.5)
-        case ..<0.7:  return Color.green.opacity(0.7)
-        default:      return Color.green.opacity(0.95)
-        }
-    }
-
-    private func weekdayLabel(_ row: Int) -> String {
-        let cal = Calendar.current
-        let firstWeekday = cal.firstWeekday
-        let weekday = ((firstWeekday - 1 + row) % 7) + 1
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        return row % 2 == 1 ? f.shortWeekdaySymbols[weekday - 1] : ""
-    }
-
-    private func tooltipText(_ summary: DailySummary) -> String {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        f.dateStyle = .medium
-        let tokens = summary.billableTokens
-        if tokens == 0 { return "\(f.string(from: summary.date)): no usage" }
-        return "\(f.string(from: summary.date)): \(tokens.formatted()) billable tokens, \(summary.eventCount) requests"
-    }
-
-    struct MonthLabel: Identifiable {
-        let offset: Int
-        let label: String
-        let span: Int
-        var id: Int { offset }
-    }
-
-    private func monthLabels(grid: [[DailySummary?]], cal: Calendar) -> [MonthLabel] {
-        var labels: [MonthLabel] = []
-        var lastMonth = -1
-        var currentSpan = 0
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        f.dateFormat = "MMM"
-
-        for (i, week) in grid.enumerated() {
-            let date = week.compactMap({ $0?.date }).first
-                ?? cal.date(byAdding: .day, value: i * 7, to: data.first?.date ?? Date())!
-            let month = cal.component(.month, from: date)
-            if month != lastMonth {
-                if !labels.isEmpty {
-                    labels[labels.count - 1] = MonthLabel(
-                        offset: labels.last!.offset,
-                        label: labels.last!.label,
-                        span: currentSpan
-                    )
-                }
-                labels.append(MonthLabel(offset: i, label: f.string(from: date), span: 1))
-                currentSpan = 1
-                lastMonth = month
-            } else {
-                currentSpan += 1
-            }
-        }
-        if !labels.isEmpty {
-            labels[labels.count - 1] = MonthLabel(
-                offset: labels.last!.offset,
-                label: labels.last!.label,
-                span: currentSpan
-            )
-        }
-        return labels
     }
 }

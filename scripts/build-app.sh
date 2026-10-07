@@ -34,6 +34,12 @@ mkdir -p "${MACOS}" "${RESOURCES}"
 cp "${BINARY}" "${MACOS}/${APP_NAME}"
 cp "Resources/Info.plist" "${CONTENTS}/Info.plist"
 
+# SwiftPM resource bundles of dependencies. Bundle.module looks for them in
+# Contents/Resources and calls fatalError when they are missing.
+for bundle in "$(dirname "${BINARY}")"/*.bundle; do
+    [[ -d "${bundle}" ]] && cp -R "${bundle}" "${RESOURCES}/"
+done
+
 if [[ -f "Resources/AppIcon.icns" ]]; then
     cp "Resources/AppIcon.icns" "${RESOURCES}/AppIcon.icns"
     /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "${CONTENTS}/Info.plist" 2>/dev/null || true

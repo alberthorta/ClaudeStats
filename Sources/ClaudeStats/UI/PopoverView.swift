@@ -3,24 +3,25 @@ import SwiftUI
 struct PopoverView: View {
     @Bindable var store: StatsStore
 
+    static let width: CGFloat = 360
+    private static let outerPadding: CGFloat = 12
+    private static let cardInnerWidth = width - outerPadding * 2 - 28
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            section(scope: .window5h)
-            Divider()
-            section(scope: .week)
-            ForEach(store.effectiveScopedWeeklyLimits) { limit in
-                Divider()
-                PaceView(pace: limit.pace, title: limit.title, resetText: limit.resetText)
-            }
+        VStack(alignment: .leading, spacing: 10) {
+            heroCard
+                .entrance(0)
+            weeklyCard
+                .entrance(1)
             if store.showHistory {
-                Divider()
-                miniHeatmap
+                activityCard
+                    .entrance(2)
             }
-            Divider()
             footer
+                .padding(.top, 2)
         }
-        .padding(16)
-        .frame(width: 360)
+        .padding(Self.outerPadding)
+        .frame(width: Self.width)
         .onAppear {
             if !store.effectiveSignedIn {
                 NSApp.activate(ignoringOtherApps: true)
@@ -36,38 +37,133 @@ struct PopoverView: View {
         SettingsWindowController.present(store: store)
     }
 
+    // MARK: Cards
+
     @ViewBuilder
-    private func section(scope: UsageScope) -> some View {
-        let stats = store.stats(for: scope)
-        let pace: StatsStore.Pace? = scope == .window5h ? store.effectiveFiveHourPace : store.effectiveWeeklyPace
-        let resetText: String = scope == .window5h
-            ? store.windowResetText
-            : (store.weeklyResetText ?? "—")
-        let title: String = scope == .window5h ? "5-hour window" : "Weekly"
-        VStack(alignment: .leading, spacing: 10) {
-            if let pace {
-                PaceView(pace: pace, title: title, resetText: resetText)
+    private var heroCard: some View {
+        let stats = store.stats(for: .window5h)
+        VStack(alignment: .leading, spacing: 14) {
+            if let pace = store.effectiveFiveHourPace {
+                HStack(alignment: .center, spacing: 14) {
+                    PaceRing(pace: pace)
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("5-hour window")
+                            .font(.system(.headline, design: .rounded))
+                        HStack(alignment: .firstTextBaseline, spacing: 5) {
+                            Text(percentText(pace.used))
+                                .font(.system(size: 26, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                                .contentTransition(.numericText(value: pace.used))
+                                .animation(Theme.springy, value: pace.used)
+                            Text("used")
+                                .font(.system(.caption, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        PacePill(pace: pace)
+                        VStack(alignment: .leading, spacing: 3) {
+                            MetricRow(symbol: "clock", text: "Resets in \(store.windowResetText)")
+                            MetricRow(symbol: "timer", text: "\(percentText(pace.elapsed)) of window elapsed")
+                            MetricRow(symbol: "arrow.up.forward",
+                                      text: "Projecting \(percentText(pace.projectedAtReset)) at reset")
+                        }
+                        .padding(.top, 2)
+                    }
+                    Spacer(minLength: 0)
+                }
             } else {
-                fallbackHeader(title: title, stats: stats)
+                placeholder(title: "5-hour window")
             }
-            breakdown(stats: stats)
+            ModelBreakdownBar(tokensByModel: stats.tokensByModel)
+        }
+        .card()
+    }
+
+    @ViewBuilder
+    private var weeklyCard: some View {
+        let stats = store.stats(for: .week)
+        let rings = store.weeklyRings
+        if !rings.isEmpty {
+            let sameReset = Set(rings.map(\.resetText)).count == 1
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .center, spacing: 14) {
+                    PaceRing(paces: rings.map(\.pace), symbol: "calendar")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Weekly")
+                            .font(.system(.headline, design: .rounded))
+                        ForEach(Array(rings.enumerated()), id: \.element.id) { i, ring in
+                            WeeklyRingRow(
+                                name: ring.name,
+                                pace: ring.pace,
+                                resetText: sameReset ? nil : ring.resetText,
+                                legend: rings.count > 1
+                                    ? RingIndexIcon(count: rings.count, index: i, color: ring.pace.color)
+                                    : nil
+                            )
+                        }
+                        if sameReset, let first = rings.first {
+                            VStack(alignment: .leading, spacing: 3) {
+                                MetricRow(symbol: "clock", text: "Resets in \(first.resetText)")
+                                MetricRow(symbol: "timer", text: "\(percentText(first.pace.elapsed)) of week elapsed")
+                            }
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+                ModelBreakdownBar(tokensByModel: stats.tokensByModel)
+            }
+            .card()
+        } else if store.effectiveFiveHourPace != nil {
+            VStack(alignment: .leading, spacing: 12) {
+                placeholder(title: "Weekly")
+                ModelBreakdownBar(tokensByModel: stats.tokensByModel)
+            }
+            .card()
         }
     }
 
-    private func fallbackHeader(title: String, stats: ScopeStats) -> some View {
-        HStack(alignment: .center, spacing: 14) {
+    private var activityCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Activity")
+                    .font(.system(.headline, design: .rounded))
+                Spacer()
+                if store.cachedStreak > 0 {
+                    Label("\(store.cachedStreak) day\(store.cachedStreak == 1 ? "" : "s") streak",
+                          systemImage: "flame.fill")
+                        .labelStyle(TintedIconLabelStyle(tint: Theme.accent))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText(value: Double(store.cachedStreak)))
+                }
+            }
+            ActivityHeatmap(data: Array(store.cachedSummaries.suffix(91)), weeks: 13,
+                            width: Self.cardInnerWidth, cellAspect: 0.7)
+        }
+        .card()
+    }
+
+    private func placeholder(title: String) -> some View {
+        HStack(alignment: .center, spacing: 12) {
             Image(systemName: statusIcon)
-                .font(.system(size: 22))
+                .font(.system(size: 20, weight: .medium))
                 .foregroundStyle(.secondary)
+                .frame(width: 40, height: 40)
+                .background(Color.primary.opacity(0.06), in: Circle())
+                .symbolEffect(.pulse, options: .repeating, isActive: isLoading)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(.title2, design: .rounded).weight(.semibold))
+                    .font(.system(.title3, design: .rounded).weight(.semibold))
                 Text(statusMessage)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(2)
             }
-            Spacer()
+            Spacer(minLength: 0)
         }
+    }
+
+    private var isLoading: Bool {
+        store.effectiveSignedIn && store.remoteError == nil
     }
 
     private var statusIcon: String {
@@ -82,345 +178,132 @@ struct PopoverView: View {
         return "Loading from claude.ai…"
     }
 
-    @ViewBuilder
-    private func breakdown(stats: ScopeStats) -> some View {
-        if !stats.tokensByModel.isEmpty {
-            let total = stats.tokensByModel.reduce(0) { $0 + $1.1 }
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(stats.tokensByModel.filter { percent($0.1, of: total) > 0 }, id: \.0) { (name, tokens) in
-                    HStack {
-                        Text(prettify(name))
-                            .font(.system(.caption, design: .rounded))
-                        Spacer()
-                        Text("\(percent(tokens, of: total))%")
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-        }
-    }
-
-    private var miniHeatmap: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Activity")
-                    .font(.system(.title2, design: .rounded).weight(.semibold))
-                Spacer()
-                Text("\(store.cachedStreak) day\(store.cachedStreak == 1 ? "" : "s") streak")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            MiniHeatmapGrid(data: Array(store.cachedSummaries.suffix(56)))
-        }
-    }
+    // MARK: Footer
 
     private var footer: some View {
-        HStack {
+        HStack(spacing: 2) {
+            RefreshCountdown(seconds: store.secondsUntilRefresh, total: store.refreshInterval)
             Text("v\(UpdateChecker.currentVersion)")
-                .font(.caption2)
+                .font(.system(size: 10.5, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .monospacedDigit()
-            Text(store.secondsUntilRefresh > 0 ? "Refresh in \(store.secondsUntilRefresh)s" : "Refreshing…")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
+                .padding(.leading, 6)
             Spacer()
-            Button("Refresh") { store.reload() }
-                .buttonStyle(.borderless)
-                .font(.caption)
-            Button("History") { HistoryWindowController.present(store: store) }
-                .buttonStyle(.borderless)
-                .font(.caption)
-            Button("About") { AboutWindowController.present() }
-                .buttonStyle(.borderless)
-                .font(.caption)
-            Button("Settings") {
+            RefreshButton { store.reload() }
+            IconButton(symbol: "chart.bar.xaxis", help: "History") {
+                HistoryWindowController.present(store: store)
+            }
+            IconButton(symbol: "gearshape", help: "Settings") {
                 NSApp.activate(ignoringOtherApps: true)
                 openAppSettings()
             }
-            .buttonStyle(.borderless)
-            .font(.caption)
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.borderless)
-                .font(.caption)
+            IconButton(symbol: "info.circle", help: "About") { AboutWindowController.present() }
+            IconButton(symbol: "power", help: "Quit", role: .destructive) {
+                NSApplication.shared.terminate(nil)
+            }
         }
-    }
-
-    private func prettify(_ name: String) -> String {
-        name.replacingOccurrences(of: "claude-", with: "")
-            .replacingOccurrences(of: "-", with: " ")
-    }
-
-    private func percent(_ value: Int, of total: Int) -> Int {
-        guard total > 0 else { return 0 }
-        return Int((Double(value) / Double(total) * 100).rounded())
     }
 }
 
-struct PaceView: View {
+// MARK: - Pieces
+
+/// One ring of the weekly gauge: which ring it is, its share used, status and projection.
+private struct WeeklyRingRow: View {
+    let name: String
     let pace: StatsStore.Pace
-    let title: String
-    let resetText: String
+    let resetText: String?
+    let legend: RingIndexIcon?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(.system(.title2, design: .rounded).weight(.semibold))
-                    Text(pace.label)
-                        .font(.system(.callout, design: .rounded).weight(.medium))
-                        .foregroundStyle(paceColor)
-                }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text("Resets in \(resetText)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text("projecting \(Int((pace.projectedAtReset * 100).rounded()))% at reset")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                }
-            }
-            paceBar
-                .frame(height: 14)
-            HStack(spacing: 12) {
-                legendDot(paceColor, "used \(pctText(pace.used))")
-                legendDot(.primary.opacity(0.85), "elapsed \(pctText(pace.elapsed))")
-            }
-            .font(.caption2)
-        }
-    }
-
-    private var paceColor: Color {
-        switch pace.ratio {
-        case ..<0.75:  return .green
-        case ..<0.95:  return .mint
-        case ..<1.10:  return .yellow
-        case ..<1.35:  return .orange
-        default:       return .red
-        }
-    }
-
-    private var paceBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(.quaternary)
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(paceColor.gradient)
-                    .frame(width: geo.size.width * CGFloat(min(1, pace.used)))
-                marker
-                    .offset(x: geo.size.width * CGFloat(min(1, pace.elapsed)) - 3)
-            }
-        }
-    }
-
-    private var marker: some View {
-        // Pure white bar with a strong dark outline so it stays readable over any fill color.
-        ZStack {
-            Capsule()
-                .fill(Color.black.opacity(0.55))
-                .frame(width: 6)
-            Capsule()
-                .fill(Color.white)
-                .frame(width: 3)
-        }
-        .frame(height: 22)
-        .shadow(color: .black.opacity(0.5), radius: 1.5, x: 0, y: 0.5)
-    }
-
-    private func pctText(_ v: Double) -> String {
-        "\(Int((v * 100).rounded()))%"
-    }
-
-    private func legendDot(_ color: Color, _ text: String) -> some View {
-        HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 6, height: 6)
-            Text(text).foregroundStyle(.secondary).monospacedDigit()
-        }
-    }
-}
-
-struct MiniHeatmapGrid: View {
-    let data: [DailySummary]
-    private let spacing: CGFloat = 3
-    private let dayLabelWidth: CGFloat = 24
-
-    var body: some View {
-        let cal = Calendar.current
-        let grid = buildGrid(cal: cal)
-        let labels = buildMonthLabels(grid: grid, cal: cal)
-        // Popover is 360px with 16px padding = 328px inner width
-        let columns = CGFloat(max(grid.count, 1))
-        let gridWidth: CGFloat = 328 - dayLabelWidth - spacing
-        let cellSize = floor((gridWidth - spacing * (columns - 1)) / columns)
-
         VStack(alignment: .leading, spacing: 3) {
-            // Month labels
-            HStack(spacing: 0) {
-                Color.clear.frame(width: dayLabelWidth + spacing, height: 12)
-                ForEach(labels, id: \.offset) { item in
-                    Text(item.label)
-                        .font(.system(size: 9, design: .rounded))
-                        .foregroundStyle(.secondary)
-                        .frame(width: CGFloat(item.span) * (cellSize + spacing), alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                if let legend {
+                    legend.alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
                 }
-                Spacer(minLength: 0)
+                Text(name)
+                    .font(.system(size: 11.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Text(percentText(pace.used))
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .contentTransition(.numericText(value: pace.used))
+                    .animation(Theme.springy, value: pace.used)
             }
-
-            // Grid with weekday labels
-            HStack(alignment: .top, spacing: spacing) {
-                // Weekday labels
-                VStack(spacing: spacing) {
-                    ForEach(0..<7, id: \.self) { row in
-                        let label = weekdayLabel(row, cal: cal)
-                        if !label.isEmpty {
-                            Text(label)
-                                .font(.system(size: 9, design: .rounded))
-                                .foregroundStyle(.secondary)
-                                .frame(width: dayLabelWidth, height: cellSize, alignment: .trailing)
-                        } else {
-                            Color.clear.frame(width: dayLabelWidth, height: cellSize)
-                        }
-                    }
-                }
-
-                // Cells
-                ForEach(0..<grid.count, id: \.self) { col in
-                    VStack(spacing: spacing) {
-                        ForEach(0..<7, id: \.self) { row in
-                            if let summary = grid[col][row] {
-                                RoundedRectangle(cornerRadius: 2)
-                                    .fill(heatColor(summary.intensity))
-                                    .frame(width: cellSize, height: cellSize)
-                            } else {
-                                Color.clear.frame(width: cellSize, height: cellSize)
-                            }
-                        }
-                    }
-                }
-                Spacer(minLength: 0)
+            HStack(spacing: 6) {
+                PacePill(pace: pace)
+                Text(resetText.map { "→ \(percentText(pace.projectedAtReset)) · \($0)" }
+                     ?? "→ \(percentText(pace.projectedAtReset))")
+                    .font(.system(size: 10.5, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .help("Projected usage at reset if you keep this pace")
             }
-        }
-    }
-
-    private func buildGrid(cal: Calendar) -> [[DailySummary?]] {
-        let lookup = Dictionary(uniqueKeysWithValues: data.map { (cal.startOfDay(for: $0.date), $0) })
-        let today = cal.startOfDay(for: Date())
-        // Row offset: how many rows down from the first weekday is today
-        let todayWeekday = cal.component(.weekday, from: today) // 1=Sun
-        let firstWeekday = cal.firstWeekday // 1=Sun or 2=Mon per locale
-        let rowOffset = (todayWeekday - firstWeekday + 7) % 7
-
-        let totalDays = data.count
-        let weeksBack = (totalDays + rowOffset) / 7
-        let startDate = cal.date(byAdding: .day, value: -(weeksBack * 7 + rowOffset), to: today)!
-
-        var grid: [[DailySummary?]] = []
-        var current = startDate
-        while current <= today {
-            var week: [DailySummary?] = []
-            for _ in 0..<7 {
-                week.append(current <= today ? lookup[current] : nil)
-                current = cal.date(byAdding: .day, value: 1, to: current)!
-            }
-            grid.append(week)
-        }
-        return grid
-    }
-
-    private func weekdayLabel(_ row: Int, cal: Calendar) -> String {
-        // Row 0 is the first day of the week per locale
-        let firstWeekday = cal.firstWeekday // 1=Sun, 2=Mon
-        let weekday = ((firstWeekday - 1 + row) % 7) + 1 // 1-based weekday
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        let name = f.shortWeekdaySymbols[weekday - 1] // Sun, Mon, ...
-        // Only show every other row
-        return row % 2 == 1 ? name : ""
-    }
-
-    struct MonthLabel {
-        let offset: Int
-        let label: String
-        let span: Int
-    }
-
-    private func buildMonthLabels(grid: [[DailySummary?]], cal: Calendar) -> [MonthLabel] {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US")
-        f.dateFormat = "MMM"
-        var labels: [MonthLabel] = []
-        var lastMonth = -1
-        var spanCount = 0
-
-        for (i, week) in grid.enumerated() {
-            // Use the first day of the week to determine the month
-            let firstDay = week.compactMap({ $0?.date }).min()
-                ?? cal.date(byAdding: .day, value: -(grid.count - 1 - i) * 7, to: Date())!
-            let month = cal.component(.month, from: firstDay)
-
-            if month != lastMonth {
-                if !labels.isEmpty {
-                    labels[labels.count - 1] = MonthLabel(
-                        offset: labels.last!.offset,
-                        label: labels.last!.label,
-                        span: spanCount
-                    )
-                }
-                labels.append(MonthLabel(offset: i, label: f.string(from: firstDay), span: 1))
-                spanCount = 1
-                lastMonth = month
-            } else {
-                spanCount += 1
-            }
-        }
-        if !labels.isEmpty {
-            labels[labels.count - 1] = MonthLabel(
-                offset: labels.last!.offset,
-                label: labels.last!.label,
-                span: spanCount
-            )
-        }
-        return labels
-    }
-
-    private func heatColor(_ intensity: Double) -> Color {
-        switch intensity {
-        case 0:       return Color.primary.opacity(0.06)
-        case ..<0.15: return Color.green.opacity(0.3)
-        case ..<0.4:  return Color.green.opacity(0.5)
-        case ..<0.7:  return Color.green.opacity(0.7)
-        default:      return Color.green.opacity(0.95)
         }
     }
 }
 
-struct RingView: View {
-    let progress: Double
+private struct MetricRow: View {
+    let symbol: String
+    let text: String
+
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(.quaternary, lineWidth: 5)
-            Circle()
-                .trim(from: 0, to: progress)
-                .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.easeInOut, value: progress)
-            Text("\(Int((1 - progress) * 100))%")
-                .font(.system(size: 14, weight: .semibold, design: .rounded))
+        HStack(spacing: 5) {
+            Image(systemName: symbol)
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .frame(width: 12)
+            Text(text)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.secondary)
                 .monospacedDigit()
+                .contentTransition(.numericText())
         }
     }
+}
 
-    private var color: Color {
-        switch progress {
-        case ..<0.6: return .green
-        case ..<0.85: return .orange
-        default: return .red
+private struct TintedIconLabelStyle: LabelStyle {
+    let tint: Color
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.icon.foregroundStyle(tint)
+            configuration.title
         }
+    }
+}
+
+/// A tiny ring that drains towards the next automatic refresh.
+private struct RefreshCountdown: View {
+    let seconds: Int
+    let total: Double
+
+    var body: some View {
+        let fraction = total > 0 ? Double(seconds) / total : 0
+        ZStack {
+            Circle().stroke(Color.primary.opacity(0.1), lineWidth: 2)
+            Circle()
+                .trim(from: 0, to: fraction)
+                .stroke(Color.secondary, style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: seconds == Int(total) ? 0.3 : 1), value: fraction)
+        }
+        .frame(width: 12, height: 12)
+        .padding(.leading, 4)
+        .help(seconds > 0 ? "Refresh in \(seconds)s" : "Refreshing…")
+    }
+}
+
+private struct RefreshButton: View {
+    let action: () -> Void
+    @State private var turns = 0.0
+
+    var body: some View {
+        IconButton(symbol: "arrow.clockwise", help: "Refresh now") {
+            withAnimation(.spring(duration: 0.6, bounce: 0.2)) { turns += 1 }
+            action()
+        }
+        .rotationEffect(.degrees(turns * 360))
     }
 }
