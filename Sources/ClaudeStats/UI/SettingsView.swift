@@ -219,12 +219,24 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(.menu)
-                Text("A translucent widget with your pace data is pinned to the top-left corner of the desktop. It's non-interactive and stays behind all windows.")
+                HStack {
+                    ColorPicker("Background", selection: overlayTintBinding, supportsOpacity: true)
+                    if store.overlayTint != StatsStore.defaultOverlayTint {
+                        Button("Reset") { store.overlayTint = StatsStore.defaultOverlayTint }
+                            .controlSize(.small)
+                    }
+                }
+                Text("A translucent widget with your pace data is pinned to a corner of the desktop. It's non-interactive and stays behind all windows. Use the opacity slider in the color panel to set the transparency; the text is white, so dark colors read best.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var overlayTintBinding: Binding<Color> {
+        Binding(get: { Color(rgba: store.overlayTint) },
+                set: { store.overlayTint = $0.rgba })
     }
 
     private var debugSection: some View {

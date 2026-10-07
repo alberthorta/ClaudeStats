@@ -126,6 +126,16 @@ final class StatsStore {
         }
     }
 
+    // sRGB red, green, blue, alpha. The default matches the dark tint the overlay always had.
+    static let defaultOverlayTint: [Double] = [0, 0, 0, 0.38]
+
+    var overlayTint: [Double] = {
+        if let v = UserDefaults.standard.array(forKey: "overlayTint") as? [Double], v.count == 4 { return v }
+        return StatsStore.defaultOverlayTint
+    }() {
+        didSet { UserDefaults.standard.set(overlayTint, forKey: "overlayTint") }
+    }
+
     enum SimulationMode: String, CaseIterable, Identifiable {
         case none = "Off"
         case signedOut = "Simulate signed out"

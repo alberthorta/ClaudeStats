@@ -585,20 +585,32 @@ struct IconButton: View {
 }
 
 extension View {
-    /// Liquid Glass on macOS 26+, a dark-tinted material before that. The tint keeps white text legible on any wallpaper.
+    /// Liquid Glass on macOS 26+, a material before that, with `tint` painted on top so its opacity is exact
+    /// (a glass tint stays faint even when opaque). `frost` fades the glass itself, so 0 leaves no box at all.
     @ViewBuilder
-    func darkGlass(cornerRadius: CGFloat) -> some View {
+    func darkGlass(cornerRadius: CGFloat, tint: Color = .black.opacity(0.38), frost: Double = 1) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if #available(macOS 26, *) {
-            self.glassEffect(.regular.tint(.black.opacity(0.38)),
-                             in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            self.background(shape.fill(tint))
+                .background(shape.fill(.clear).glassEffect(.regular, in: shape).opacity(frost))
         } else {
             self.background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.black.opacity(0.35)))
+                shape.fill(.ultraThinMaterial).opacity(frost)
+                    .overlay(shape.fill(tint))
             }
             .environment(\.colorScheme, .dark)
         }
+    }
+}
+
+extension Color {
+    init(rgba: [Double]) {
+        let c = rgba.count == 4 ? rgba : StatsStore.defaultOverlayTint
+        self.init(.sRGB, red: c[0], green: c[1], blue: c[2], opacity: c[3])
+    }
+
+    var rgba: [Double] {
+        guard let c = NSColor(self).usingColorSpace(.sRGB) else { return StatsStore.defaultOverlayTint }
+        return [c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent].map(Double.init)
     }
 }

@@ -36,7 +36,7 @@ Built with SwiftUI + AppKit (`NSStatusItem` + `NSPopover`). No Dock icon, no tel
 - **Compact menu bar** — hides the pace glyph, showing only the text value. Automatically disabled when "Icon only" is selected.
 - **Global keyboard shortcut** — set a hotkey to toggle the popover from anywhere. Uses the Carbon `RegisterEventHotKey` API — no Accessibility permissions required.
 - **Show activity heatmap in popover and desktop overlay** — toggles the inline heatmap; applies live, no restart needed.
-- **Desktop overlay** — pin a glass, non-interactive widget to any corner of any screen: the 5-hour and weekly ring gauges side by side (including any model-scoped weekly caps), the activity heatmap, and a watermark pace glyph. Respects Dock placement and repositions instantly when the Dock shows/hides.
+- **Desktop overlay** — pin a glass, non-interactive widget to any corner of any screen: the 5-hour and weekly ring gauges side by side (including any model-scoped weekly caps), the activity heatmap, and a watermark pace glyph. Pick the background colour and its opacity: 0% leaves only the gauges, 100% gives a solid card. Respects Dock placement and repositions instantly when the Dock shows/hides.
 - Toggle Launch at Login
 - **Check for updates** — queries the GitHub Releases API; if a newer version is available you can **Install & restart** in-place. Works whether the app lives in `/Applications/` or anywhere else.
 - **Check for updates automatically at startup** — when enabled, the app checks for a newer release each launch and shows a native macOS confirmation dialog (Update now / Later) before installing.

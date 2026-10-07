@@ -230,8 +230,13 @@ struct DesktopOverlayView: View {
                 .contentTransition(.symbolEffect(.replace))
         }
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .darkGlass(cornerRadius: 18)
+        .darkGlass(cornerRadius: 18, tint: Color(rgba: store.overlayTint), frost: glassFrost)
         .environment(\.colorScheme, .dark)
+    }
+
+    // Full glass from the default opacity up; below it the glass fades with the color, so 0% hides the box.
+    private var glassFrost: Double {
+        min(1, store.overlayTint[3] / StatsStore.defaultOverlayTint[3])
     }
 
     private var watermarkSymbol: String {
