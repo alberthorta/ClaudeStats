@@ -174,6 +174,9 @@ struct PaceRing: View {
     let paces: [StatsStore.Pace]
     /// nil keeps SupperGauge's spark.
     var symbol: String?
+    /// Base name of a bundled `<logo>-light.png` / `<logo>-dark.png` pair drawn like the spark.
+    /// Takes precedence over `symbol`.
+    var logo: String?
     var size: CGFloat = 112
     @State private var shown = false
 
@@ -181,9 +184,10 @@ struct PaceRing: View {
         self.init(paces: [pace], symbol: symbol, size: size)
     }
 
-    init(paces: [StatsStore.Pace], symbol: String? = nil, size: CGFloat = 112) {
+    init(paces: [StatsStore.Pace], symbol: String? = nil, logo: String? = nil, size: CGFloat = 112) {
         self.paces = paces
         self.symbol = symbol
+        self.logo = logo
         self.size = size
     }
 
@@ -192,7 +196,7 @@ struct PaceRing: View {
         paces.max { $0.ratio < $1.ratio }?.color ?? .secondary
     }
 
-    /// SupperGauge draws one marker across every ring. Only show it when it is true for all of them.
+    /// One marker across every ring when they all share it; otherwise SupperGauge draws one per ring.
     private var sharedElapsed: Double? {
         guard let first = paces.first?.elapsed,
               paces.allSatisfy({ abs($0.elapsed - first) < 0.01 }) else { return nil }
@@ -203,8 +207,9 @@ struct PaceRing: View {
         SupperGauge(
             values: paces.map { shown ? $0.used * 100 : 0 },
             marker: sharedElapsed.map { shown ? $0 * 100 : 0 },
-            light: appearance(.light, marker: .black.opacity(0.8)),
-            dark: appearance(.dark, marker: .white),
+            ringMarkers: paces.map { shown ? $0.elapsed * 100 : 0 },
+            light: appearance(.light, marker: .black.opacity(0.8), logoVariant: "light"),
+            dark: appearance(.dark, marker: .white, logoVariant: "dark"),
             lineWidth: paces.count > 1 ? 16 : 10,
             markerWidth: 3
         )
@@ -219,13 +224,15 @@ struct PaceRing: View {
         .accessibilityLabel(paces.map { "\(percentText($0.used)) used, \($0.label)" }.joined(separator: "; "))
     }
 
-    private func appearance(_ base: SupperGaugeAppearance, marker: Color) -> SupperGaugeAppearance {
+    private func appearance(_ base: SupperGaugeAppearance, marker: Color, logoVariant: String) -> SupperGaugeAppearance {
         var a = base
         a.trackColor = Color.primary.opacity(0.08)
         a.progressColor = color
         a.ringColors = paces.map(\.color)
         a.markerColor = marker
-        if let symbol {
+        if let logo {
+            a.image = .bundled("\(logo)-\(logoVariant)")
+        } else if let symbol {
             a.image = Image(systemName: symbol)
         }
         return a

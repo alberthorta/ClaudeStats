@@ -35,11 +35,15 @@ struct SettingsView: View {
     @State private var showPasteField: Bool = false
     @State private var googleSignInStatus: String?
     @State private var currentShortcut: KeyCombo? = KeyCombo.load()
+    @State private var deviceCode: ChatGPTLogin.DeviceCode?
+    @State private var chatGPTSignInTask: Task<Void, Never>?
+    @State private var chatGPTSignInError: String?
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 claudeAccountSection
+                codexSection
                 generalSection
                 desktopOverlaySection
                 if Self.debugEnabled { debugSection }
@@ -155,6 +159,120 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var codexSection: some View {
+        section("ChatGPT · Codex") {
+            HStack(spacing: 8) {
+                Image(systemName: codexStatusIcon)
+                    .foregroundStyle(store.codexConnected && store.codexError == nil ? .green : .secondary)
+                Text(codexStatusText)
+                    .font(.callout)
+                Spacer(minLength: 0)
+            }
+
+            if let code = deviceCode {
+                deviceCodeBox(code)
+            } else {
+                HStack(spacing: 8) {
+                    Button(store.codexSource == .ownSignIn ? "Sign in again with a code" : "Sign in with a code") {
+                        startChatGPTSignIn()
+                    }
+                    if store.codexSource == .ownSignIn {
+                        Button("Sign out") { Task { await store.signOutOfChatGPT() } }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+
+            if let err = chatGPTSignInError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if store.codexConnected, let err = store.codexError {
+                Text(err)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
+            Toggle("Show Codex usage in the popover and desktop overlay", isOn: $store.showCodex)
+                .disabled(!store.codexConnected)
+
+            Text("Sign in with a code to use any ChatGPT account. It works like codex login --device-auth and is kept apart from Codex. Without it, ClaudeStats reads the sign-in that Codex keeps in ~/.codex/auth.json. Tokens are only sent to OpenAI.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func deviceCodeBox(_ code: ChatGPTLogin.DeviceCode) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Open the sign-in page and enter this code:")
+                .font(.callout)
+            Text(code.userCode)
+                .font(.system(size: 26, weight: .bold, design: .monospaced))
+                .textSelection(.enabled)
+            HStack(spacing: 8) {
+                Button("Open sign-in page") { NSWorkspace.shared.open(ChatGPTLogin.verificationURL) }
+                    .keyboardShortcut(.defaultAction)
+                Button("Copy code") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code.userCode, forType: .string)
+                }
+                Button("Cancel") { cancelChatGPTSignIn() }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text("Waiting for approval…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func startChatGPTSignIn() {
+        chatGPTSignInError = nil
+        chatGPTSignInTask = Task { @MainActor in
+            do {
+                let code = try await ChatGPTLogin.requestDeviceCode()
+                deviceCode = code
+                NSWorkspace.shared.open(ChatGPTLogin.verificationURL)
+                try await ChatGPTLogin.completeSignIn(code)
+                deviceCode = nil
+                await store.refreshCodex()
+            } catch where Task.isCancelled || error is CancellationError {
+                deviceCode = nil
+            } catch {
+                deviceCode = nil
+                chatGPTSignInError = error.localizedDescription
+            }
+        }
+    }
+
+    private func cancelChatGPTSignIn() {
+        chatGPTSignInTask?.cancel()
+        chatGPTSignInTask = nil
+        deviceCode = nil
+    }
+
+    private var codexStatusIcon: String {
+        if !store.codexConnected { return "person.crop.circle.badge.questionmark" }
+        return store.codexError == nil ? "checkmark.seal.fill" : "exclamationmark.triangle"
+    }
+
+    private var codexStatusText: String {
+        let plan = store.codexPlanName.map { " · \($0) plan" } ?? ""
+        switch store.codexSource {
+        case .ownSignIn:
+            return "Signed in as \(ChatGPTLogin.email ?? "ChatGPT user")\(plan)"
+        case .codexCLI:
+            return "Using the Codex CLI sign-in\(plan)"
+        case nil:
+            return "Not signed in to ChatGPT"
         }
     }
 

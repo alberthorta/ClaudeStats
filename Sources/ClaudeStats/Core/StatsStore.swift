@@ -8,6 +8,23 @@ final class StatsStore {
     var remoteError: String?
     var isSignedIn: Bool = ClaudeAIClient.hasSession
     var simulation: SimulationMode = .none
+    var codex: CodexUsage?
+    var codexError: String?
+    var codexSource: CodexClient.Source? = CodexClient.source
+    var codexConnected: Bool { codexSource != nil }
+
+    var showCodex: Bool = {
+        if UserDefaults.standard.object(forKey: "showCodex") == nil { return true }
+        return UserDefaults.standard.bool(forKey: "showCodex")
+    }() {
+        didSet {
+            UserDefaults.standard.set(showCodex, forKey: "showCodex")
+            if showCodex { Task { await refreshCodex() } }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [self] in
+                DesktopOverlayManager.shared.update(store: self)
+            }
+        }
+    }
 
     enum DisplayMode: String, CaseIterable, Identifiable {
         case used = "% used"
@@ -203,6 +220,8 @@ final class StatsStore {
 
         isSignedIn = ClaudeAIClient.hasSession
         if isSignedIn { Task { await refreshRemote() } }
+        codexSource = CodexClient.source
+        if showCodex && codexConnected { Task { await refreshCodex() } }
         DesktopOverlayManager.shared.update(store: self)
     }
 
@@ -215,6 +234,26 @@ final class StatsStore {
         } catch {
             remoteError = error.localizedDescription
         }
+    }
+
+    @MainActor
+    func refreshCodex() async {
+        do {
+            codex = try await CodexClient.fetchUsage()
+            codexError = nil
+        } catch {
+            codexError = error.localizedDescription
+        }
+        codexSource = CodexClient.source
+    }
+
+    @MainActor
+    func signOutOfChatGPT() async {
+        ChatGPTLogin.signOut()
+        codex = nil
+        codexError = nil
+        codexSource = CodexClient.source
+        if codexConnected { await refreshCodex() }
     }
 
     func signOut() {
@@ -303,7 +342,11 @@ final class StatsStore {
     }
 
     private func pace(used: Double?, resetsAt iso: String?, duration: Double) -> Pace? {
-        guard let used, let iso, let reset = Self.parseDate(iso) else { return nil }
+        pace(used: used, resetsAt: iso.flatMap(Self.parseDate), duration: duration)
+    }
+
+    private func pace(used: Double?, resetsAt reset: Date?, duration: Double) -> Pace? {
+        guard let used, let reset, duration > 0 else { return nil }
         let remaining = max(0, reset.timeIntervalSinceNow)
         let elapsed = max(0, min(1, 1 - remaining / duration))
         return Pace(used: used, elapsed: elapsed)
@@ -345,6 +388,48 @@ final class StatsStore {
 
     var weeklyResetText: String? {
         Self.dayHourCountdown(remote?.sevenDay?.resetsAt)
+    }
+
+    /// One Codex rate-limit window. The server sends its length, so Plus windows
+    /// are not assumed to match Claude's 5h / 7d.
+    struct CodexWindow: Identifiable {
+        let id: String
+        let name: String
+        let pace: Pace
+        let resetText: String
+    }
+
+    var codexWindows: [CodexWindow] {
+        guard showCodex, let limits = codex?.rateLimit else { return [] }
+        return [("primary", limits.primaryWindow), ("secondary", limits.secondaryWindow)]
+            .compactMap { id, window in
+                guard let window, let seconds = window.limitWindowSeconds,
+                      let pace = pace(used: window.usedFraction, resetsAt: window.resetDate, duration: seconds)
+                else { return nil }
+                return CodexWindow(id: id, name: Self.windowName(seconds: seconds), pace: pace,
+                                   resetText: Self.countdown(to: window.resetDate) ?? "—")
+            }
+    }
+
+    var codexPlanName: String? {
+        codex?.planType.map { $0.prefix(1).uppercased() + $0.dropFirst() }
+    }
+
+    private static func windowName(seconds: Double) -> String {
+        let hours = Int((seconds / 3600).rounded())
+        switch hours {
+        case 168: return "Weekly"
+        case 24: return "Daily"
+        default: return hours % 24 == 0 ? "\(hours / 24)-day window" : "\(hours)-hour window"
+        }
+    }
+
+    private static func countdown(to date: Date?) -> String? {
+        guard let date else { return nil }
+        let secs = max(0, Int(date.timeIntervalSinceNow))
+        let d = secs / 86400, h = (secs % 86400) / 3600, m = (secs % 3600) / 60
+        if d > 0 { return "\(d)d \(h)h" }
+        return h > 0 ? "\(h)h \(m)m" : "\(m)m"
     }
 
     private static func dayHourCountdown(_ iso: String?) -> String? {

@@ -201,6 +201,10 @@ struct DesktopOverlayView: View {
                     .font(.system(.callout, design: .rounded))
                     .foregroundStyle(.white.opacity(0.7))
             }
+            let codexWindows = store.codexWindows
+            if !codexWindows.isEmpty {
+                codexSection(codexWindows)
+            }
             if store.showHistory && !store.cachedSummaries.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
@@ -308,6 +312,41 @@ struct DesktopOverlayView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func codexSection(_ windows: [StatsStore.CodexWindow]) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            PaceRing(paces: windows.map(\.pace), logo: "openai", size: 84)
+            VStack(alignment: .leading, spacing: 6) {
+                columnTitle(store.codexPlanName.map { "Codex · \($0)" } ?? "Codex")
+                ForEach(Array(windows.enumerated()), id: \.element.id) { i, window in
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 5) {
+                            if windows.count > 1 {
+                                RingIndexIcon(count: windows.count, index: i, color: window.pace.color, size: 11)
+                            }
+                            Text(window.name)
+                                .font(.system(size: 10.5, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.65))
+                                .lineLimit(1)
+                            Spacer(minLength: 2)
+                            Text(percentText(window.pace.used))
+                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .foregroundStyle(.white)
+                                .monospacedDigit()
+                                .contentTransition(.numericText(value: window.pace.used))
+                            Image(systemName: window.pace.symbol)
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(window.pace.color)
+                                .help(window.pace.label)
+                        }
+                        footnote("Resets in \(window.resetText)")
+                            .frame(maxWidth: .infinity, alignment: .trailing)
+                    }
+                    .animation(Theme.springy, value: window.pace.used)
+                }
+            }
+        }
     }
 
     private func columnTitle(_ text: String) -> some View {

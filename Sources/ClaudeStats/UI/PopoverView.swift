@@ -13,9 +13,13 @@ struct PopoverView: View {
                 .entrance(0)
             weeklyCard
                 .entrance(1)
+            if store.showCodex && store.codexConnected {
+                codexCard
+                    .entrance(2)
+            }
             if store.showHistory {
                 activityCard
-                    .entrance(2)
+                    .entrance(3)
             }
             footer
                 .padding(.top, 2)
@@ -121,6 +125,56 @@ struct PopoverView: View {
         }
     }
 
+    @ViewBuilder
+    private var codexCard: some View {
+        let windows = store.codexWindows
+        VStack(alignment: .leading, spacing: 14) {
+            if !windows.isEmpty {
+                HStack(alignment: .center, spacing: 14) {
+                    PaceRing(paces: windows.map(\.pace), logo: "openai")
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(codexTitle)
+                            .font(.system(.headline, design: .rounded))
+                        ForEach(Array(windows.enumerated()), id: \.element.id) { i, window in
+                            WeeklyRingRow(
+                                name: window.name,
+                                pace: window.pace,
+                                resetText: window.resetText,
+                                legend: windows.count > 1
+                                    ? RingIndexIcon(count: windows.count, index: i, color: window.pace.color)
+                                    : nil
+                            )
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    Image(systemName: store.codexError == nil ? "hourglass" : "exclamationmark.triangle")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 40, height: 40)
+                        .background(Color.primary.opacity(0.06), in: Circle())
+                        .symbolEffect(.pulse, options: .repeating, isActive: store.codexError == nil)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(codexTitle)
+                            .font(.system(.title3, design: .rounded).weight(.semibold))
+                        Text(store.codexError ?? "Loading from chatgpt.com…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .card()
+    }
+
+    private var codexTitle: String {
+        store.codexPlanName.map { "Codex · \($0)" } ?? "Codex"
+    }
+
     private var activityCard: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
@@ -208,7 +262,7 @@ struct PopoverView: View {
 // MARK: - Pieces
 
 /// One ring of the weekly gauge: which ring it is, its share used, status and projection.
-private struct WeeklyRingRow: View {
+struct WeeklyRingRow: View {
     let name: String
     let pace: StatsStore.Pace
     let resetText: String?

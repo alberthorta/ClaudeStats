@@ -73,6 +73,7 @@ extension Image {
 public struct SupperGauge: View {
     private let values: [Double]
     private let marker: Double?
+    private let ringMarkers: [Double?]?
     private let light: SupperGaugeAppearance
     private let dark: SupperGaugeAppearance
     private let lineWidth: CGFloat?
@@ -95,7 +96,8 @@ public struct SupperGauge: View {
         lineWidth: CGFloat? = nil,
         markerWidth: CGFloat? = nil
     ) {
-        self.init(values: [value], marker: marker, light: light, dark: dark, lineWidth: lineWidth, markerWidth: markerWidth)
+        self.init(values: [value], marker: marker, ringMarkers: nil, light: light, dark: dark,
+                  lineWidth: lineWidth, markerWidth: markerWidth)
     }
 
     /// Shows one concentric ring per value, outermost first. All rings share the space of a single ring,
@@ -103,6 +105,8 @@ public struct SupperGauge: View {
     /// - Parameters:
     ///   - values: 0...100 each. Values outside the range are clamped.
     ///   - marker: 0...100. Draws a line across all the rings at this position.
+    ///   - ringMarkers: 0...100 each, one per value. Draws a line across only that ring, for rings
+    ///     whose markers differ. Ignored when `marker` is set.
     ///   - light: Colours and image used in light mode.
     ///   - dark: Colours and image used in dark mode.
     ///   - lineWidth: Total thickness in points of all rings plus the gaps between them.
@@ -111,6 +115,7 @@ public struct SupperGauge: View {
     public init(
         values: [Double],
         marker: Double? = nil,
+        ringMarkers: [Double?]? = nil,
         light: SupperGaugeAppearance = .light,
         dark: SupperGaugeAppearance = .dark,
         lineWidth: CGFloat? = nil,
@@ -119,6 +124,7 @@ public struct SupperGauge: View {
         precondition(!values.isEmpty, "SupperGauge needs at least one value")
         self.values = values
         self.marker = marker
+        self.ringMarkers = ringMarkers
         self.light = light
         self.dark = dark
         self.lineWidth = lineWidth
@@ -131,6 +137,11 @@ public struct SupperGauge: View {
 
     private var markerFraction: Double? {
         marker.map(Self.fraction)
+    }
+
+    private var ringMarkerFractions: [Double?] {
+        guard marker == nil, let ringMarkers else { return [] }
+        return ringMarkers.map { $0.map(Self.fraction) }
     }
 
     private static func fraction(_ percent: Double) -> Double {
@@ -184,6 +195,18 @@ public struct SupperGauge: View {
                             .rotationEffect(.degrees(markerFraction * 360))
                     }
 
+                    ForEach(Array(ringMarkerFractions.enumerated()), id: \.offset) { index, fraction in
+                        if let fraction, index < fractions.count {
+                            let diameter = ringsSide - ringWidth - 2 * CGFloat(index) * (ringWidth + gap)
+                            // The overhang is smaller than the gap, so it never reaches the next ring.
+                            Rectangle()
+                                .fill(appearance.markerColor)
+                                .frame(width: markerWidth ?? max(1.5, band * 0.15), height: ringWidth + 2 * markerOverhang)
+                                .offset(y: -diameter / 2)
+                                .rotationEffect(.degrees(fraction * 360))
+                        }
+                    }
+
                     appearance.image
                         .resizable()
                         .scaledToFit()
@@ -196,6 +219,7 @@ public struct SupperGauge: View {
         }
         .animation(.easeInOut(duration: 0.3), value: fractions)
         .animation(.easeInOut(duration: 0.3), value: markerFraction)
+        .animation(.easeInOut(duration: 0.3), value: ringMarkerFractions)
         .accessibilityElement()
         .accessibilityValue(accessibilityText)
     }
