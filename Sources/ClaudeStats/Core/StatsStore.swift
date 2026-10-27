@@ -113,10 +113,8 @@ final class StatsStore {
         }
     }
 
-    // Cached history data — recomputed every 30 minutes, not every reload cycle
     var cachedSummaries: [DailySummary] = []
     var cachedStreak: Int = 0
-    private var lastHistoryRefresh: Date = .distantPast
 
     var showDesktopOverlay: Bool = UserDefaults.standard.bool(forKey: "showDesktopOverlay") {
         didSet {
@@ -203,20 +201,7 @@ final class StatsStore {
     func reload() {
         lastReloadTime = Date()
         secondsUntilRefresh = Int(refreshInterval)
-        let needsHistoryRefresh = Date().timeIntervalSince(lastHistoryRefresh) > 1800
-
-        let lookback = needsHistoryRefresh ? -90 * 24 * 3600.0 : -8 * 24 * 3600.0
-        let allEvents = JsonlUsageReader.loadEvents(since: Date().addingTimeInterval(lookback))
-
-        if needsHistoryRefresh {
-            let cutoff = Date().addingTimeInterval(-8 * 24 * 3600)
-            events = allEvents.filter { $0.timestamp >= cutoff }
-            cachedSummaries = UsageHistory.dailySummaries(from: allEvents, days: 90)
-            cachedStreak = UsageHistory.streak(from: cachedSummaries)
-            lastHistoryRefresh = Date()
-        } else {
-            events = allEvents
-        }
+        loadLocalUsage()
 
         isSignedIn = ClaudeAIClient.hasSession
         if isSignedIn { Task { await refreshRemote() } }
@@ -261,6 +246,32 @@ final class StatsStore {
         remote = nil
         remoteError = nil
         isSignedIn = false
+    }
+
+    @ObservationIgnored private let usageReader = JsonlUsageReader()
+    @ObservationIgnored private let usageQueue = DispatchQueue(label: "ClaudeStats.jsonl", qos: .utility)
+    @ObservationIgnored private var isLoadingLocalUsage = false
+
+    /// The first pass parses ~90 days of logs and takes seconds, so it never runs on the main thread.
+    private func loadLocalUsage() {
+        guard !isLoadingLocalUsage else { return }
+        isLoadingLocalUsage = true
+        let reader = usageReader
+        usageQueue.async { [weak self] in
+            let all = reader.loadEvents(since: Date().addingTimeInterval(-90 * 24 * 3600))
+            let cutoff = Date().addingTimeInterval(-8 * 24 * 3600)
+            let recent = all.filter { $0.timestamp >= cutoff }
+            let summaries = UsageHistory.dailySummaries(from: all, days: 90)
+            let streak = UsageHistory.streak(from: summaries)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.events = recent
+                self.cachedSummaries = summaries
+                self.cachedStreak = streak
+                self.isLoadingLocalUsage = false
+                DesktopOverlayManager.shared.update(store: self)
+            }
+        }
     }
 
     private func startTimer() {
