@@ -115,59 +115,81 @@ struct RemoteUsage: Decodable {
 struct OrgListItem: Decodable {
     let uuid: String
     let name: String?
+    let capabilities: [String]?
+
+    /// A paid org (Pro, Max, Team / Enterprise). A Team member also gets a free
+    /// personal org, and that one has no usage limits worth showing.
+    var isPaid: Bool {
+        (capabilities ?? []).contains { ["claude_pro", "claude_max", "raven"].contains($0) }
+    }
+}
+
+/// The app tracks a main account plus one optional extra (e.g. a work account).
+/// Only the main one drives the menu bar icon.
+enum ClaudeAccount: String, CaseIterable, Identifiable {
+    case primary, secondary
+    var id: String { rawValue }
+
+    var other: ClaudeAccount { self == .primary ? .secondary : .primary }
+
+    // The primary keys predate multi-account support; keep them so existing sign-ins survive.
+    fileprivate var keyPrefix: String { self == .primary ? "claudeai." : "claudeai.secondary." }
 }
 
 enum ClaudeAIClient {
-    static let sessionKeyKey = "claudeai.sessionKey"
-    static let orgIdKey = "claudeai.orgId"
-
-    static var hasSession: Bool { Keychain.get(sessionKeyKey) != nil }
-
-    static func storeSessionKey(_ value: String) {
-        Keychain.set(value, for: sessionKeyKey)
+    static func hasSession(_ account: ClaudeAccount = .primary) -> Bool {
+        Keychain.get(sessionKeyKey(account)) != nil
     }
 
-    static func storeOrgId(_ value: String) {
-        Keychain.set(value, for: orgIdKey)
+    private static func sessionKeyKey(_ account: ClaudeAccount) -> String { account.keyPrefix + "sessionKey" }
+    private static func orgIdKey(_ account: ClaudeAccount) -> String { account.keyPrefix + "orgId" }
+
+    /// Stores the key only after claude.ai accepts it, so a bad paste can't replace a working session.
+    static func signIn(_ account: ClaudeAccount, sessionKey: String) async throws {
+        if sessionKey == Keychain.get(sessionKeyKey(account.other)) {
+            throw ClientError.sameAccount
+        }
+        let orgId = try await fetchOrgId(sessionKey: sessionKey)
+        Keychain.set(sessionKey, for: sessionKeyKey(account))
+        Keychain.set(orgId, for: orgIdKey(account))
     }
 
-    static func clear() {
-        Keychain.remove(sessionKeyKey)
-        Keychain.remove(orgIdKey)
+    static func clear(_ account: ClaudeAccount = .primary) {
+        Keychain.remove(sessionKeyKey(account))
+        Keychain.remove(orgIdKey(account))
     }
 
-    static func fetchOrgId() async throws -> String {
-        let req = try authedRequest(url: URL(string: "https://claude.ai/api/organizations")!)
+    private static func fetchOrgId(sessionKey: String) async throws -> String {
+        let req = request(url: URL(string: "https://claude.ai/api/organizations")!, sessionKey: sessionKey)
         let (data, response) = try await URLSession.shared.data(for: req)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw ClientError.unauthorized
         }
         let orgs = try JSONDecoder().decode([OrgListItem].self, from: data)
-        guard let first = orgs.first else { throw ClientError.noOrg }
-        return first.uuid
+        guard let org = orgs.first(where: \.isPaid) ?? orgs.first else { throw ClientError.noOrg }
+        return org.uuid
     }
 
-    static func fetchUsage() async throws -> RemoteUsage {
+    static func fetchUsage(_ account: ClaudeAccount = .primary) async throws -> RemoteUsage {
+        guard let sessionKey = Keychain.get(sessionKeyKey(account)) else {
+            throw ClientError.unauthorized
+        }
         let orgId: String
-        if let stored = Keychain.get(orgIdKey) {
+        if let stored = Keychain.get(orgIdKey(account)) {
             orgId = stored
         } else {
-            orgId = try await fetchOrgId()
-            Keychain.set(orgId, for: orgIdKey)
+            orgId = try await fetchOrgId(sessionKey: sessionKey)
+            Keychain.set(orgId, for: orgIdKey(account))
         }
         let url = URL(string: "https://claude.ai/api/organizations/\(orgId)/usage")!
-        let req = try authedRequest(url: url)
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await URLSession.shared.data(for: request(url: url, sessionKey: sessionKey))
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw ClientError.unauthorized
         }
         return try JSONDecoder().decode(RemoteUsage.self, from: data)
     }
 
-    private static func authedRequest(url: URL) throws -> URLRequest {
-        guard let sessionKey = Keychain.get(sessionKeyKey) else {
-            throw ClientError.unauthorized
-        }
+    private static func request(url: URL, sessionKey: String) -> URLRequest {
         var req = URLRequest(url: url)
         req.setValue("sessionKey=\(sessionKey)", forHTTPHeaderField: "Cookie")
         req.setValue("ClaudeStats/0.1 (macOS)", forHTTPHeaderField: "User-Agent")
@@ -176,11 +198,12 @@ enum ClaudeAIClient {
     }
 
     enum ClientError: Error, LocalizedError {
-        case unauthorized, noOrg
+        case unauthorized, noOrg, sameAccount
         var errorDescription: String? {
             switch self {
             case .unauthorized: "Not signed in or session expired"
             case .noOrg: "No organization found on this account"
+            case .sameAccount: "This is the same session as your other Claude account. Sign out of claude.ai first, then sign in with the other account."
             }
         }
     }

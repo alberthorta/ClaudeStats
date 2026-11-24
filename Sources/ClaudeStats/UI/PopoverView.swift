@@ -13,6 +13,10 @@ struct PopoverView: View {
                 .entrance(0)
             weeklyCard
                 .entrance(1)
+            if store.secondarySignedIn {
+                secondaryCard
+                    .entrance(2)
+            }
             if store.showCodex && store.codexConnected {
                 codexCard
                     .entrance(2)
@@ -65,7 +69,7 @@ struct PopoverView: View {
                         }
                         PacePill(pace: pace)
                         VStack(alignment: .leading, spacing: 3) {
-                            MetricRow(symbol: "clock", text: "Resets in \(store.windowResetText)")
+                            MetricRow(symbol: "clock", text: store.windowResetLine)
                             MetricRow(symbol: "timer", text: "\(percentText(pace.elapsed)) of window elapsed")
                             MetricRow(symbol: "arrow.up.forward",
                                       text: "Projecting \(percentText(pace.projectedAtReset)) at reset")
@@ -125,23 +129,44 @@ struct PopoverView: View {
         }
     }
 
-    @ViewBuilder
+    private var secondaryCard: some View {
+        ringListCard(
+            title: store.secondaryTitle,
+            rings: store.secondaryRings,
+            symbol: "briefcase.fill",
+            error: store.secondaryError.map { "claude.ai error: \($0)" },
+            loadingText: "Loading from claude.ai…"
+        )
+    }
+
     private var codexCard: some View {
-        let windows = store.codexWindows
+        ringListCard(
+            title: codexTitle,
+            rings: store.codexWindows.map {
+                WeeklyRing(id: $0.id, name: $0.name, pace: $0.pace, resetText: $0.resetText)
+            },
+            logo: "openai",
+            error: store.codexError,
+            loadingText: "Loading from chatgpt.com…"
+        )
+    }
+
+    private func ringListCard(title: String, rings: [WeeklyRing], symbol: String? = nil,
+                              logo: String? = nil, error: String?, loadingText: String) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            if !windows.isEmpty {
+            if !rings.isEmpty {
                 HStack(alignment: .center, spacing: 14) {
-                    PaceRing(paces: windows.map(\.pace), logo: "openai")
+                    PaceRing(paces: rings.map(\.pace), symbol: symbol, logo: logo)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(codexTitle)
+                        Text(title)
                             .font(.system(.headline, design: .rounded))
-                        ForEach(Array(windows.enumerated()), id: \.element.id) { i, window in
+                        ForEach(Array(rings.enumerated()), id: \.element.id) { i, ring in
                             WeeklyRingRow(
-                                name: window.name,
-                                pace: window.pace,
-                                resetText: window.resetText,
-                                legend: windows.count > 1
-                                    ? RingIndexIcon(count: windows.count, index: i, color: window.pace.color)
+                                name: ring.name,
+                                pace: ring.pace,
+                                resetText: ring.resetText,
+                                legend: rings.count > 1
+                                    ? RingIndexIcon(count: rings.count, index: i, color: ring.pace.color)
                                     : nil
                             )
                         }
@@ -150,16 +175,16 @@ struct PopoverView: View {
                 }
             } else {
                 HStack(alignment: .center, spacing: 12) {
-                    Image(systemName: store.codexError == nil ? "hourglass" : "exclamationmark.triangle")
+                    Image(systemName: error == nil ? "hourglass" : "exclamationmark.triangle")
                         .font(.system(size: 20, weight: .medium))
                         .foregroundStyle(.secondary)
                         .frame(width: 40, height: 40)
                         .background(Color.primary.opacity(0.06), in: Circle())
-                        .symbolEffect(.pulse, options: .repeating, isActive: store.codexError == nil)
+                        .symbolEffect(.pulse, options: .repeating, isActive: error == nil)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(codexTitle)
+                        Text(title)
                             .font(.system(.title3, design: .rounded).weight(.semibold))
-                        Text(store.codexError ?? "Loading from chatgpt.com…")
+                        Text(error ?? loadingText)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                             .lineLimit(2)

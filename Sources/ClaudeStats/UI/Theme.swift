@@ -249,16 +249,36 @@ struct WeeklyRing: Identifiable {
 
 extension StatsStore {
     var weeklyRings: [WeeklyRing] {
+        simulation == .signedOut ? [] : Self.weeklyRings(remote)
+    }
+
+    static func weeklyRings(_ usage: RemoteUsage?, namePrefix: String = "") -> [WeeklyRing] {
         var rings: [WeeklyRing] = []
-        if let pace = effectiveWeeklyPace {
-            rings.append(WeeklyRing(id: "weekly", name: "All models", pace: pace,
-                                    resetText: weeklyResetText ?? "—"))
+        if let pace = weeklyPace(usage) {
+            rings.append(WeeklyRing(id: "weekly", name: namePrefix + "All models", pace: pace,
+                                    resetText: weeklyResetText(usage) ?? "—"))
         }
-        for limit in effectiveScopedWeeklyLimits {
+        for limit in scopedWeeklyLimits(usage) {
             let name = limit.title.replacingOccurrences(of: "Weekly · ", with: "")
-            rings.append(WeeklyRing(id: limit.id, name: name, pace: limit.pace, resetText: limit.resetText))
+            rings.append(WeeklyRing(id: limit.id, name: namePrefix + name, pace: limit.pace,
+                                    resetText: limit.resetText))
         }
         return rings
+    }
+
+    /// The second account in one gauge: the 5h window first, then every weekly cap.
+    var secondaryRings: [WeeklyRing] {
+        guard secondarySignedIn else { return [] }
+        var rings: [WeeklyRing] = []
+        if let pace = Self.fiveHourPace(secondary) {
+            rings.append(WeeklyRing(id: "5h", name: "5-hour window", pace: pace,
+                                    resetText: secondary?.fiveHour?.resetsAt == nil
+                                        ? "not started" : Self.windowResetText(secondary)))
+        }
+        let weekly = Self.weeklyRings(secondary, namePrefix: "Weekly · ").map {
+            $0.id == "weekly" ? WeeklyRing(id: $0.id, name: "Weekly", pace: $0.pace, resetText: $0.resetText) : $0
+        }
+        return rings + weekly
     }
 }
 

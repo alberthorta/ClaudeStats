@@ -9,16 +9,13 @@ enum SignInWindowController {
     private static var window: NSWindow?
 
     @MainActor
-    static func present(onCaptured: @escaping () -> Void) {
+    static func present(account: ClaudeAccount, store: StatsStore) {
         if let window {
             window.makeKeyAndOrderFront(nil)
             return
         }
 
-        let view = SignInView(onCaptured: {
-            onCaptured()
-            close()
-        })
+        let view = SignInView(account: account, store: store, onDone: { close() })
 
         let hosting = NSHostingController(rootView: view)
         let win = NSWindow(contentViewController: hosting)
@@ -40,7 +37,9 @@ enum SignInWindowController {
 }
 
 private struct SignInView: View {
-    let onCaptured: () -> Void
+    let account: ClaudeAccount
+    let store: StatsStore
+    let onDone: () -> Void
     @State private var status: String = "Sign in with your email account"
 
     var body: some View {
@@ -56,15 +55,12 @@ private struct SignInView: View {
 
             ClaudeWebView(onSessionCaptured: { key in
                 Task { @MainActor in
-                    ClaudeAIClient.storeSessionKey(key)
                     status = "Captured — fetching organization…"
-                    do {
-                        let orgId = try await ClaudeAIClient.fetchOrgId()
-                        ClaudeAIClient.storeOrgId(orgId)
-                        status = "Done"
-                        onCaptured()
-                    } catch {
-                        status = "Signed in, but org fetch failed: \(error.localizedDescription)"
+                    await store.signIn(account, sessionKey: key)
+                    if let error = store.error(for: account) {
+                        status = "Signed in, but it failed: \(error)"
+                    } else {
+                        onDone()
                     }
                 }
             })

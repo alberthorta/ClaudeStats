@@ -32,8 +32,6 @@ struct SettingsView: View {
     @State private var updateStatus: UpdateStatus = .idle
     @State private var installing: Bool = false
     @State private var installError: String?
-    @State private var showPasteField: Bool = false
-    @State private var googleSignInStatus: String?
     @State private var currentShortcut: KeyCombo? = KeyCombo.load()
     @State private var deviceCode: ChatGPTLogin.DeviceCode?
     @State private var chatGPTSignInTask: Task<Void, Never>?
@@ -42,7 +40,12 @@ struct SettingsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
-                claudeAccountSection
+                section("Claude.ai account") {
+                    ClaudeAccountSettings(store: store, account: .primary)
+                }
+                section("Second Claude account") {
+                    ClaudeAccountSettings(store: store, account: .secondary)
+                }
                 codexSection
                 generalSection
                 desktopOverlaySection
@@ -59,108 +62,6 @@ struct SettingsView: View {
     }
 
     // MARK: - Sections
-
-    private var claudeAccountSection: some View {
-        section("Claude.ai account") {
-            HStack(spacing: 8) {
-                Image(systemName: store.isSignedIn ? "checkmark.seal.fill" : "person.crop.circle.badge.questionmark")
-                    .foregroundStyle(store.isSignedIn ? .green : .secondary)
-                Text(store.isSignedIn
-                     ? "Signed in — using server-side usage"
-                     : "Not signed in — pace data unavailable")
-                    .font(.callout)
-                Spacer(minLength: 0)
-            }
-
-            HStack(spacing: 8) {
-                Button(store.isSignedIn ? "Re-authenticate (email)" : "Sign in with email") {
-                    SignInWindowController.present {
-                        store.isSignedIn = ClaudeAIClient.hasSession
-                        Task { await store.refreshRemote() }
-                    }
-                }
-                Button("Sign in with Google") {
-                    googleSignInStatus = nil
-                    GoogleSignInHelper.shared.start { result in
-                        Task { @MainActor in
-                            switch result {
-                            case .success(let key):
-                                ClaudeAIClient.storeSessionKey(key)
-                                googleSignInStatus = "Captured — fetching organization…"
-                                do {
-                                    let orgId = try await ClaudeAIClient.fetchOrgId()
-                                    ClaudeAIClient.storeOrgId(orgId)
-                                    store.isSignedIn = true
-                                    await store.refreshRemote()
-                                    googleSignInStatus = nil
-                                } catch {
-                                    store.remoteError = error.localizedDescription
-                                    googleSignInStatus = nil
-                                }
-                            case .failure(let error):
-                                googleSignInStatus = error.localizedDescription
-                                showPasteField = true
-                            }
-                        }
-                    }
-                }
-                if store.isSignedIn {
-                    Button("Sign out") { store.signOut() }
-                }
-                Spacer(minLength: 0)
-            }
-
-            if let status = googleSignInStatus {
-                Text(status)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
-            if let err = store.remoteError {
-                Text(err)
-                    .font(.caption)
-                    .foregroundStyle(.red)
-            }
-
-            Text("Email opens an embedded window. Google opens your default browser for OAuth compatibility.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            VStack(alignment: .leading, spacing: 8) {
-                Button {
-                    showPasteField.toggle()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: showPasteField ? "chevron.down" : "chevron.right")
-                            .font(.caption2)
-                        Text("Paste sessionKey manually")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                if showPasteField {
-                    Text("1. Open claude.ai in Safari/Chrome (logged in)\n2. DevTools \u{2192} Application \u{2192} Cookies \u{2192} claude.ai\n3. Copy the value of the sessionKey cookie and paste below")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    SessionPasteField { key in
-                        Task { @MainActor in
-                            ClaudeAIClient.storeSessionKey(key)
-                            do {
-                                let orgId = try await ClaudeAIClient.fetchOrgId()
-                                ClaudeAIClient.storeOrgId(orgId)
-                                store.isSignedIn = true
-                                await store.refreshRemote()
-                            } catch {
-                                store.remoteError = error.localizedDescription
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     private var codexSection: some View {
         section("ChatGPT · Codex") {
@@ -495,6 +396,115 @@ struct SettingsView: View {
                     text = ""
                 }
                 .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+    }
+}
+
+// MARK: - Claude account
+
+private struct ClaudeAccountSettings: View {
+    @Bindable var store: StatsStore
+    let account: ClaudeAccount
+    @State private var showPasteField = false
+    @State private var googleSignInStatus: String?
+
+    private var signedIn: Bool { store.isSignedIn(account) }
+
+    var body: some View {
+        if account == .secondary {
+            Text("Optional. Shown in the popover and on the desktop overlay. The menu bar icon only uses the main account.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            TextField("Name", text: $store.secondaryName, prompt: Text("Work"))
+                .textFieldStyle(.roundedBorder)
+                .frame(maxWidth: 220)
+        }
+
+        HStack(spacing: 8) {
+            Image(systemName: signedIn ? "checkmark.seal.fill" : "person.crop.circle.badge.questionmark")
+                .foregroundStyle(signedIn ? .green : .secondary)
+            Text(statusText)
+                .font(.callout)
+            Spacer(minLength: 0)
+        }
+
+        HStack(spacing: 8) {
+            Button(signedIn ? "Re-authenticate (email)" : "Sign in with email") {
+                SignInWindowController.present(account: account, store: store)
+            }
+            Button("Sign in with Google") { startGoogleSignIn() }
+            if signedIn {
+                Button("Sign out") { store.signOut(account) }
+            }
+            Spacer(minLength: 0)
+        }
+
+        if let status = googleSignInStatus {
+            Text(status)
+                .font(.caption)
+                .foregroundStyle(.orange)
+        }
+
+        if let err = store.error(for: account) {
+            Text(err)
+                .font(.caption)
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+
+        Text("Email opens an embedded window. Google opens your default browser for OAuth compatibility.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+        VStack(alignment: .leading, spacing: 8) {
+            Button {
+                showPasteField.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: showPasteField ? "chevron.down" : "chevron.right")
+                        .font(.caption2)
+                    Text("Paste sessionKey manually")
+                        .font(.caption)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if showPasteField {
+                Text("1. Open claude.ai in Safari/Chrome (logged in)\n2. DevTools \u{2192} Application \u{2192} Cookies \u{2192} claude.ai\n3. Copy the value of the sessionKey cookie and paste below")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                SettingsView.SessionPasteField { key in
+                    Task { await store.signIn(account, sessionKey: key) }
+                }
+            }
+        }
+    }
+
+    private var statusText: String {
+        switch (account, signedIn) {
+        case (.primary, true): "Signed in — using server-side usage"
+        case (.primary, false): "Not signed in — pace data unavailable"
+        case (.secondary, true): "Signed in"
+        case (.secondary, false): "Not set up"
+        }
+    }
+
+    private func startGoogleSignIn() {
+        googleSignInStatus = nil
+        GoogleSignInHelper.shared.start { result in
+            Task { @MainActor in
+                switch result {
+                case .success(let key):
+                    googleSignInStatus = "Captured — fetching organization…"
+                    await store.signIn(account, sessionKey: key)
+                    googleSignInStatus = nil
+                case .failure(let error):
+                    googleSignInStatus = error.localizedDescription
+                    showPasteField = true
+                }
             }
         }
     }

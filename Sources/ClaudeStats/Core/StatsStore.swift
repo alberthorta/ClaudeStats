@@ -6,7 +6,19 @@ final class StatsStore {
     var events: [UsageEvent] = []
     var remote: RemoteUsage?
     var remoteError: String?
-    var isSignedIn: Bool = ClaudeAIClient.hasSession
+    var isSignedIn: Bool = ClaudeAIClient.hasSession(.primary)
+    var secondary: RemoteUsage?
+    var secondaryError: String?
+    var secondarySignedIn: Bool = ClaudeAIClient.hasSession(.secondary)
+
+    var secondaryName: String = UserDefaults.standard.string(forKey: "secondaryAccountName") ?? "Work" {
+        didSet { UserDefaults.standard.set(secondaryName, forKey: "secondaryAccountName") }
+    }
+
+    var secondaryTitle: String {
+        let name = secondaryName.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? "Second account" : name
+    }
     var simulation: SimulationMode = .none
     var codex: CodexUsage?
     var codexError: String?
@@ -191,8 +203,10 @@ final class StatsStore {
     }
 
     /// Time until the 5h window resets, per the server-provided ISO timestamp.
-    var windowResetText: String {
-        guard let iso = remote?.fiveHour?.resetsAt, let date = Self.parseDate(iso) else { return "—" }
+    var windowResetText: String { Self.windowResetText(remote) }
+
+    static func windowResetText(_ usage: RemoteUsage?) -> String {
+        guard let iso = usage?.fiveHour?.resetsAt, let date = parseDate(iso) else { return "—" }
         let secs = max(0, Int(date.timeIntervalSinceNow))
         let h = secs / 3600, m = (secs % 3600) / 60
         return h > 0 ? "\(h)h \(m)m" : "\(m)m"
@@ -203,21 +217,64 @@ final class StatsStore {
         secondsUntilRefresh = Int(refreshInterval)
         loadLocalUsage()
 
-        isSignedIn = ClaudeAIClient.hasSession
+        isSignedIn = ClaudeAIClient.hasSession(.primary)
         if isSignedIn { Task { await refreshRemote() } }
+        secondarySignedIn = ClaudeAIClient.hasSession(.secondary)
+        if secondarySignedIn { Task { await refreshRemote(.secondary) } }
         codexSource = CodexClient.source
         if showCodex && codexConnected { Task { await refreshCodex() } }
         DesktopOverlayManager.shared.update(store: self)
     }
 
     @MainActor
-    func refreshRemote() async {
-        guard ClaudeAIClient.hasSession else { return }
+    func refreshRemote(_ account: ClaudeAccount = .primary) async {
+        guard ClaudeAIClient.hasSession(account) else { return }
         do {
-            remote = try await ClaudeAIClient.fetchUsage()
-            remoteError = nil
+            let usage = try await ClaudeAIClient.fetchUsage(account)
+            switch account {
+            case .primary: remote = usage; remoteError = nil
+            case .secondary: secondary = usage; secondaryError = nil
+            }
         } catch {
-            remoteError = error.localizedDescription
+            setError(error.localizedDescription, for: account)
+        }
+        if account == .secondary {
+            // The overlay window is sized once per update, so a card appearing must re-fit it.
+            DesktopOverlayManager.shared.update(store: self)
+        }
+    }
+
+    @MainActor
+    func signIn(_ account: ClaudeAccount, sessionKey: String) async {
+        do {
+            try await ClaudeAIClient.signIn(account, sessionKey: sessionKey)
+            setSignedIn(true, for: account)
+            setError(nil, for: account)
+            await refreshRemote(account)
+        } catch {
+            setError(error.localizedDescription, for: account)
+        }
+    }
+
+    func isSignedIn(_ account: ClaudeAccount) -> Bool {
+        account == .primary ? isSignedIn : secondarySignedIn
+    }
+
+    func error(for account: ClaudeAccount) -> String? {
+        account == .primary ? remoteError : secondaryError
+    }
+
+    func setError(_ message: String?, for account: ClaudeAccount) {
+        switch account {
+        case .primary: remoteError = message
+        case .secondary: secondaryError = message
+        }
+    }
+
+    private func setSignedIn(_ value: Bool, for account: ClaudeAccount) {
+        switch account {
+        case .primary: isSignedIn = value
+        case .secondary: secondarySignedIn = value
         }
     }
 
@@ -241,11 +298,17 @@ final class StatsStore {
         if codexConnected { await refreshCodex() }
     }
 
-    func signOut() {
-        ClaudeAIClient.clear()
-        remote = nil
-        remoteError = nil
-        isSignedIn = false
+    func signOut(_ account: ClaudeAccount = .primary) {
+        ClaudeAIClient.clear(account)
+        setSignedIn(false, for: account)
+        setError(nil, for: account)
+        switch account {
+        case .primary:
+            remote = nil
+        case .secondary:
+            secondary = nil
+            DesktopOverlayManager.shared.update(store: self)
+        }
     }
 
     @ObservationIgnored private let usageReader = JsonlUsageReader()
@@ -340,23 +403,35 @@ final class StatsStore {
         }
     }
 
-    var fiveHourPace: Pace? {
-        pace(used: remote?.fiveHour?.utilizationFraction,
-             resetsAt: remote?.fiveHour?.resetsAt,
-             duration: 5 * 3600)
+    var fiveHourPace: Pace? { Self.fiveHourPace(remote) }
+    var weeklyPace: Pace? { Self.weeklyPace(remote) }
+
+    static func fiveHourPace(_ usage: RemoteUsage?) -> Pace? {
+        guard let window = usage?.fiveHour else { return nil }
+        // No reset time means the window has not started: it opens with the next message.
+        if window.resetsAt == nil, let used = window.utilizationFraction {
+            return Pace(used: used, elapsed: 0)
+        }
+        return pace(used: window.utilizationFraction, resetsAt: window.resetsAt, duration: 5 * 3600)
     }
 
-    var weeklyPace: Pace? {
-        pace(used: remote?.sevenDay?.utilizationFraction,
-             resetsAt: remote?.sevenDay?.resetsAt,
+    var windowResetLine: String { Self.windowResetLine(remote) }
+
+    static func windowResetLine(_ usage: RemoteUsage?) -> String {
+        usage?.fiveHour?.resetsAt == nil ? "Starts with your next message" : "Resets in \(windowResetText(usage))"
+    }
+
+    static func weeklyPace(_ usage: RemoteUsage?) -> Pace? {
+        pace(used: usage?.sevenDay?.utilizationFraction,
+             resetsAt: usage?.sevenDay?.resetsAt,
              duration: 7 * 24 * 3600)
     }
 
-    private func pace(used: Double?, resetsAt iso: String?, duration: Double) -> Pace? {
-        pace(used: used, resetsAt: iso.flatMap(Self.parseDate), duration: duration)
+    private static func pace(used: Double?, resetsAt iso: String?, duration: Double) -> Pace? {
+        pace(used: used, resetsAt: iso.flatMap(parseDate), duration: duration)
     }
 
-    private func pace(used: Double?, resetsAt reset: Date?, duration: Double) -> Pace? {
+    private static func pace(used: Double?, resetsAt reset: Date?, duration: Double) -> Pace? {
         guard let used, let reset, duration > 0 else { return nil }
         let remaining = max(0, reset.timeIntervalSinceNow)
         let elapsed = max(0, min(1, 1 - remaining / duration))
@@ -376,8 +451,10 @@ final class StatsStore {
         let resetText: String
     }
 
-    var scopedWeeklyLimits: [ScopedLimit] {
-        (remote?.limits ?? []).compactMap { limit in
+    var scopedWeeklyLimits: [ScopedLimit] { Self.scopedWeeklyLimits(remote) }
+
+    static func scopedWeeklyLimits(_ usage: RemoteUsage?) -> [ScopedLimit] {
+        (usage?.limits ?? []).compactMap { limit in
             guard limit.kind == "weekly_scoped",
                   let label = limit.scopeLabel,
                   let pace = pace(used: limit.utilizationFraction,
@@ -388,17 +465,15 @@ final class StatsStore {
                 id: limit.scopeIdentity ?? label,
                 title: "Weekly · \(label)",
                 pace: pace,
-                resetText: Self.dayHourCountdown(limit.resetsAt) ?? "—"
+                resetText: dayHourCountdown(limit.resetsAt) ?? "—"
             )
         }
     }
 
-    var effectiveScopedWeeklyLimits: [ScopedLimit] {
-        simulation == .signedOut ? [] : scopedWeeklyLimits
-    }
+    var weeklyResetText: String? { Self.weeklyResetText(remote) }
 
-    var weeklyResetText: String? {
-        Self.dayHourCountdown(remote?.sevenDay?.resetsAt)
+    static func weeklyResetText(_ usage: RemoteUsage?) -> String? {
+        dayHourCountdown(usage?.sevenDay?.resetsAt)
     }
 
     /// One Codex rate-limit window. The server sends its length, so Plus windows
@@ -415,7 +490,7 @@ final class StatsStore {
         return [("primary", limits.primaryWindow), ("secondary", limits.secondaryWindow)]
             .compactMap { id, window in
                 guard let window, let seconds = window.limitWindowSeconds,
-                      let pace = pace(used: window.usedFraction, resetsAt: window.resetDate, duration: seconds)
+                      let pace = Self.pace(used: window.usedFraction, resetsAt: window.resetDate, duration: seconds)
                 else { return nil }
                 return CodexWindow(id: id, name: Self.windowName(seconds: seconds), pace: pace,
                                    resetText: Self.countdown(to: window.resetDate) ?? "—")

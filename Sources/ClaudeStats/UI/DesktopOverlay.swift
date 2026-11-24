@@ -201,9 +201,19 @@ struct DesktopOverlayView: View {
                     .font(.system(.callout, design: .rounded))
                     .foregroundStyle(.white.opacity(0.7))
             }
+            let secondaryRings = store.secondaryRings
+            if !secondaryRings.isEmpty {
+                ringListSection(title: store.secondaryTitle, rings: secondaryRings, symbol: "briefcase.fill")
+            }
             let codexWindows = store.codexWindows
             if !codexWindows.isEmpty {
-                codexSection(codexWindows)
+                ringListSection(
+                    title: store.codexPlanName.map { "Codex · \($0)" } ?? "Codex",
+                    rings: codexWindows.map {
+                        WeeklyRing(id: $0.id, name: $0.name, pace: $0.pace, resetText: $0.resetText)
+                    },
+                    logo: "openai"
+                )
             }
             if store.showHistory && !store.cachedSummaries.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -267,7 +277,7 @@ struct DesktopOverlayView: View {
                 .animation(Theme.springy, value: pace.used)
             statusLabel(pace)
             Spacer(minLength: 0)
-            footnote("Resets in \(store.windowResetText)")
+            footnote(store.remote?.fiveHour?.resetsAt == nil ? "Not started" : "Resets in \(store.windowResetText)")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -314,11 +324,12 @@ struct DesktopOverlayView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func codexSection(_ windows: [StatsStore.CodexWindow]) -> some View {
+    private func ringListSection(title: String, rings windows: [WeeklyRing],
+                                 symbol: String? = nil, logo: String? = nil) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            PaceRing(paces: windows.map(\.pace), logo: "openai", size: 84)
+            PaceRing(paces: windows.map(\.pace), symbol: symbol, logo: logo, size: 84)
             VStack(alignment: .leading, spacing: 6) {
-                columnTitle(store.codexPlanName.map { "Codex · \($0)" } ?? "Codex")
+                columnTitle(title)
                 ForEach(Array(windows.enumerated()), id: \.element.id) { i, window in
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 5) {
